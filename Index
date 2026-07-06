@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIMANIS — Sistem Manajemen Inventaris Sekolah</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="view-login" class="login-screen">
+  <div class="login-card">
+    <div class="seal">SM</div>
+    <h1>SIMANIS</h1>
+    <p class="subtitle">Sistem Manajemen Inventaris Sekolah</p>
+    <form id="form-login">
+      <label>Username
+        <input type="text" id="login-username" required autocomplete="username">
+      </label>
+      <label>Password
+        <input type="password" id="login-password" required autocomplete="current-password">
+      </label>
+      <button type="submit" class="btn-primary">Masuk</button>
+      <p id="login-error" class="error-text"></p>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== APP SHELL ===================== -->
+<div id="view-app" class="app-shell hidden">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="seal small">SM</div>
+      <div>
+        <div class="brand-title">SIMANIS</div>
+        <div class="brand-user" id="current-user-label"></div>
+      </div>
+    </div>
+    <nav class="tabs">
+      <button class="tab-btn active" data-view="dashboard">Ringkasan</button>
+      <button class="tab-btn" data-view="barang">Data Barang</button>
+      <button class="tab-btn" data-view="peminjaman">Peminjaman</button>
+      <button class="tab-btn" data-view="kerusakan">Kerusakan</button>
+      <button class="tab-btn" data-view="perawatan">Perawatan</button>
+      <button class="tab-btn" data-view="penghapusan">Penghapusan</button>
+      <button class="tab-btn" data-view="ruangan">Ruangan</button>
+      <button class="tab-btn admin-only" data-view="users">Pengguna</button>
+    </nav>
+    <button id="btn-logout" class="btn-secondary logout-btn">Keluar</button>
+  </aside>
+
+  <main class="content">
+
+    <!-- DASHBOARD -->
+    <section id="section-dashboard" class="view-section">
+      <h2>Ringkasan Inventaris</h2>
+      <div class="stat-grid" id="stat-grid"></div>
+    </section>
+
+    <!-- BARANG -->
+    <section id="section-barang" class="view-section hidden">
+      <div class="section-header">
+        <h2>Data Barang</h2>
+        <button class="btn-primary" id="btn-new-barang">+ Barang Baru</button>
+      </div>
+      <div class="filter-row">
+        <input type="text" id="filter-search" placeholder="Cari nama / kode / merk...">
+        <select id="filter-kondisi">
+          <option value="">Semua Kondisi</option>
+          <option value="baik">Baik</option>
+          <option value="rusak ringan">Rusak Ringan</option>
+          <option value="rusak berat">Rusak Berat</option>
+        </select>
+        <select id="filter-status">
+          <option value="">Semua Status</option>
+          <option value="tersedia">Tersedia</option>
+          <option value="dipinjam">Dipinjam</option>
+          <option value="rusak">Rusak</option>
+          <option value="diusulkan_hapus">Diusulkan Hapus</option>
+          <option value="dihapus">Dihapus</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table id="table-barang">
+          <thead><tr>
+            <th>Kode</th><th>Nama Barang</th><th>Kategori</th><th>Ruangan</th>
+            <th>Kondisi</th><th>Status</th><th>Aksi</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination-barang"></div>
+    </section>
+
+    <!-- PEMINJAMAN -->
+    <section id="section-peminjaman" class="view-section hidden">
+      <div class="section-header">
+        <h2>Peminjaman Barang</h2>
+        <button class="btn-primary" id="btn-new-peminjaman">+ Ajukan Peminjaman</button>
+      </div>
+      <div class="table-wrap">
+        <table id="table-peminjaman">
+          <thead><tr>
+            <th>ID</th><th>Barang</th><th>Peminjam</th><th>Tujuan</th>
+            <th>Tgl Pinjam</th><th>Rencana Kembali</th><th>Status</th><th>Aksi</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- KERUSAKAN -->
+    <section id="section-kerusakan" class="view-section hidden">
+      <div class="section-header">
+        <h2>Laporan Kerusakan</h2>
+        <button class="btn-primary" id="btn-new-kerusakan">+ Lapor Kerusakan</button>
+      </div>
+      <div class="table-wrap">
+        <table id="table-kerusakan">
+          <thead><tr>
+            <th>ID</th><th>Barang</th><th>Tgl Lapor</th><th>Pelapor</th>
+            <th>Deskripsi</th><th>Tingkat</th><th>Status</th><th>Aksi</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PERAWATAN -->
+    <section id="section-perawatan" class="view-section hidden">
+      <div class="section-header">
+        <h2>Riwayat Perawatan</h2>
+        <button class="btn-primary" id="btn-new-perawatan">+ Catat Perawatan</button>
+      </div>
+      <div class="table-wrap">
+        <table id="table-perawatan">
+          <thead><tr>
+            <th>ID</th><th>Barang</th><th>Tanggal</th><th>Jenis</th>
+            <th>Pelaksana</th><th>Biaya</th><th>Keterangan</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PENGHAPUSAN -->
+    <section id="section-penghapusan" class="view-section hidden">
+      <div class="section-header">
+        <h2>Usulan Penghapusan</h2>
+        <button class="btn-primary" id="btn-new-penghapusan">+ Ajukan Penghapusan</button>
+      </div>
+      <div class="table-wrap">
+        <table id="table-penghapusan">
+          <thead><tr>
+            <th>ID</th><th>Barang</th><th>Tgl Usulan</th><th>Alasan</th>
+            <th>Status</th><th>Disetujui Oleh</th><th>Aksi</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- RUANGAN -->
+    <section id="section-ruangan" class="view-section hidden">
+      <div class="section-header">
+        <h2>Data Ruangan</h2>
+        <button class="btn-primary admin-only" id="btn-new-ruangan">+ Ruangan Baru</button>
+      </div>
+      <div class="table-wrap">
+        <table id="table-ruangan">
+          <thead><tr>
+            <th>Kode</th><th>Nama Ruangan</th><th>Lokasi/Gedung</th>
+            <th>Penanggung Jawab</th><th>Aksi</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- USERS (admin only) -->
+    <section id="section-users" class="view-section hidden">
+      <div class="section-header">
+        <h2>Manajemen Pengguna</h2>
+        <button class="btn-primary" id="btn-new-user">+ Pengguna Baru</button>
+      </div>
+      <div class="table-wrap">
+        <table id="table-users">
+          <thead><tr>
+            <th>Username</th><th>Nama</th><th>Role</th><th>Ruangan</th><th>Status</th><th>Aksi</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ===================== MODAL GENERIK ===================== -->
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="modal-title">Judul</h3>
+      <button id="modal-close" class="btn-close">&times;</button>
+    </div>
+    <div id="modal-body" class="modal-body"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
