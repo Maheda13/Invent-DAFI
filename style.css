@@ -174,11 +174,12 @@ tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
 tbody tr:hover { background: #FFF5F5; }
 td.mono, .kode-cell { font-family: var(--font-mono); font-size: 12.5px; }
 
-.badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; background: var(--gray-light); color: var(--gray); }
 .badge-baik, .badge-tersedia { background: #E3F9EC; color: #0F9D53; }
 .badge-rusak, .badge-rusak-ringan, .badge-dipinjam { background: #FEF1DD; color: #B9770E; }
-.badge-rusak-berat, .badge-dihapus { background: #FCE4E4; color: var(--red-dark); }
+.badge-rusak-berat, .badge-dihapus, .badge-hilang { background: #FCE4E4; color: var(--red-dark); }
 .badge-diusulkan, .badge-diusulkan_hapus { background: #EBE7FA; color: #5B3FBE; }
+.badge-dihibahkan, .badge-usang, .badge-habis-pakai { background: #E9EEF3; color: #3E5A73; }
 
 .row-actions button {
   border: none; background: none; cursor: pointer; font-size: 12.5px;
