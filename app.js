@@ -14,6 +14,7 @@ let STATE = {
   referensiList: []
 };
 
+
 // ---------------- API HELPER ----------------
 // Catatan: Content-Type text/plain sengaja dipakai supaya browser TIDAK
 // mengirim preflight OPTIONS (Apps Script tidak bisa menangani OPTIONS).
