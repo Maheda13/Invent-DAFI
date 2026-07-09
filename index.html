@@ -16,7 +16,7 @@
   <div class="login-card">
     <img src="assets/logo-dafi.png" alt="Logo DAFI" class="login-logo">
     <div class="login-mark">SI<span>DAFI</span></div>
-    <p class="subtitle">SISTEM INVENTARISASI DIGITAL DAFI</p>
+    <p class="subtitle">SISTEM INVENTARISASI DIGITAL DAFI 1.2</p>
     <form id="form-login">
       <label>Username
         <input type="text" id="login-username" required autocomplete="username">
@@ -58,7 +58,16 @@
     <!-- DASHBOARD -->
     <section id="section-dashboard" class="view-section">
       <h2>Ringkasan Inventaris</h2>
-      <div class="stat-grid" id="stat-grid"></div>
+
+      <div class="hero-grid" id="hero-grid"></div>
+
+      <div class="dash-block">
+        <div class="dash-block-title">Komposisi Status Barang</div>
+        <div class="status-bar" id="status-bar"></div>
+        <div class="status-legend" id="status-legend"></div>
+      </div>
+
+      <div class="notice-grid" id="notice-grid"></div>
     </section>
 
     <!-- BARANG -->
@@ -191,7 +200,7 @@
       <div class="table-wrap">
         <table id="table-referensi">
           <thead><tr>
-            <th>Golongan Barang</th><th>Kode Golongan</th><th>Jenis Barang</th><th>Kode Klasifikasi</th>
+            <th>Golongan Barang</th><th>Kode Golongan</th><th>Jenis Barang</th><th>Kode Klasifikasi</th><th>Aksi</th>
           </tr></thead>
           <tbody></tbody>
         </table>
