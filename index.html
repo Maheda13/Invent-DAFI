@@ -47,6 +47,7 @@
       <button class="tab-btn" data-view="perawatan">Perawatan</button>
       <button class="tab-btn" data-view="penghapusan">Penghapusan</button>
       <button class="tab-btn" data-view="ruangan">Ruangan</button>
+      <button class="tab-btn admin-only" data-view="referensi">Referensi Kode</button>
       <button class="tab-btn admin-only" data-view="users">Pengguna</button>
     </nav>
     <button id="btn-logout" class="btn-logout">Keluar</button>
@@ -67,7 +68,8 @@
         <button class="btn-primary" id="btn-new-barang">+ Barang Baru</button>
       </div>
       <div class="filter-row">
-        <input type="text" id="filter-search" placeholder="Cari nama / kode / merk...">
+        <input type="text" id="filter-search" placeholder="Cari nomor inventaris / jenis / spesifikasi...">
+        <select id="filter-golongan"><option value="">Semua Golongan</option></select>
         <select id="filter-kondisi">
           <option value="">Semua Kondisi</option>
           <option value="baik">Baik</option>
@@ -86,7 +88,7 @@
       <div class="table-wrap">
         <table id="table-barang">
           <thead><tr>
-            <th>Kode</th><th>Nama Barang</th><th>Kategori</th><th>Ruangan</th>
+            <th>Nomor Inventaris</th><th>Jenis Barang</th><th>Golongan</th><th>Ruangan</th>
             <th>Kondisi</th><th>Status</th><th>Aksi</th>
           </tr></thead>
           <tbody></tbody>
@@ -104,7 +106,7 @@
       <div class="table-wrap">
         <table id="table-peminjaman">
           <thead><tr>
-            <th>ID</th><th>Barang</th><th>Peminjam</th><th>Tujuan</th>
+            <th>ID</th><th>Barang</th><th>Peminjam</th><th>Keperluan</th><th>Tujuan</th>
             <th>Tgl Pinjam</th><th>Rencana Kembali</th><th>Status</th><th>Aksi</th>
           </tr></thead>
           <tbody></tbody>
@@ -155,7 +157,7 @@
       <div class="table-wrap">
         <table id="table-penghapusan">
           <thead><tr>
-            <th>ID</th><th>Barang</th><th>Tgl Usulan</th><th>Alasan</th>
+            <th>ID</th><th>Barang</th><th>Tgl Usulan</th><th>Kategori</th><th>Alasan</th>
             <th>Status</th><th>Disetujui Oleh</th><th>Aksi</th>
           </tr></thead>
           <tbody></tbody>
@@ -172,8 +174,24 @@
       <div class="table-wrap">
         <table id="table-ruangan">
           <thead><tr>
-            <th>Kode</th><th>Nama Ruangan</th><th>Lokasi/Gedung</th>
+            <th>Kode</th><th>Area</th><th>Gedung</th><th>Nama Ruangan</th>
             <th>Penanggung Jawab</th><th>Aksi</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- REFERENSI KODE (admin only) -->
+    <section id="section-referensi" class="view-section hidden">
+      <div class="section-header">
+        <h2>Referensi Kode Klasifikasi</h2>
+        <button class="btn-primary" id="btn-new-referensi">+ Kode Baru</button>
+      </div>
+      <div class="table-wrap">
+        <table id="table-referensi">
+          <thead><tr>
+            <th>Golongan Barang</th><th>Kode Golongan</th><th>Jenis Barang</th><th>Kode Klasifikasi</th>
           </tr></thead>
           <tbody></tbody>
         </table>
