@@ -2,7 +2,7 @@
 // KONFIGURASI - ganti dengan URL Web App Apps Script Anda
 // ============================================================
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbyWX3q6oAeZnbvCQidqUrqYioB8VSZjoNvkhO-XeDvNXrCeY6saeIir5W6SWAWXWmY/exec'
+  API_URL: 'https://script.google.com/macros/s/AKfycbw9xc588RU649jf4-ynuSQwVH7k7ZwWV4z0QTEielC0LI0OY-utdTSngK2OPr9CHA4b/exec'
 };
 
 let STATE = {
@@ -13,7 +13,6 @@ let STATE = {
   barangList: [],
   referensiList: []
 };
-
 
 // ---------------- API HELPER ----------------
 // Catatan: Content-Type text/plain sengaja dipakai supaya browser TIDAK
@@ -118,23 +117,89 @@ function badge(text) {
 function rupiah(n) { return 'Rp ' + Number(n || 0).toLocaleString('id-ID'); }
 function fmtDate(v) { if (!v) return '-'; const d = new Date(v); return isNaN(d) ? v : d.toLocaleDateString('id-ID'); }
 
+// ---------------- INPUT MASK (poin 4: format terstandar) ----------------
+// Nomor Inventaris: XX.XX.XX.XXXX.XXX — titik otomatis muncul saat mengetik angka.
+function attachNomorInventarisMask(input) {
+  const segmentLengths = [2, 2, 2, 4, 3];
+  input.addEventListener('input', function () {
+    const digits = input.value.replace(/\D/g, '');
+    let out = '';
+    let pos = 0;
+    for (let i = 0; i < segmentLengths.length && pos < digits.length; i++) {
+      if (i > 0) out += '.';
+      out += digits.substr(pos, segmentLengths[i]);
+      pos += segmentLengths[i];
+    }
+    input.value = out;
+  });
+}
+
+// Harga: tampilkan dengan pemisah ribuan otomatis (mis. 1.500.000) saat mengetik,
+// nilai mentah (angka murni) diambil lewat rawNumber() saat submit.
+function attachRupiahMask(input) {
+  input.addEventListener('input', function () {
+    const digits = input.value.replace(/\D/g, '');
+    input.value = digits ? Number(digits).toLocaleString('id-ID') : '';
+  });
+}
+function rawNumber(input) { return input.value.replace(/\D/g, '') || '0'; }
+
 // ---------------- DASHBOARD ----------------
+const STATUS_COLORS = {
+  tersedia: '#0F9D53',
+  dipinjam: '#E5A63A',
+  rusak: '#BF1219',
+  diusulkan_hapus: '#7C5CD8',
+  dihapus: '#9A9A9A'
+};
+const STATUS_LABELS = {
+  tersedia: 'Tersedia', dipinjam: 'Dipinjam', rusak: 'Rusak',
+  diusulkan_hapus: 'Diusulkan Hapus', dihapus: 'Dihapus'
+};
+
 async function loadDashboard() {
   const res = await api('dashboardSummary', {});
   const s = res.data;
-  const cards = [
-    ['Total Barang', s.total_barang],
-    ['Tersedia', s.tersedia],
-    ['Dipinjam', s.dipinjam],
-    ['Rusak', s.rusak],
-    ['Diusulkan Hapus', s.diusulkan_hapus],
-    ['Total Nilai Aset', rupiah(s.total_nilai)],
-    ['Kerusakan Belum Selesai', s.kerusakan_belum_selesai],
-    ['Penghapusan Menunggu Keputusan', s.penghapusan_menunggu]
-  ];
-  document.getElementById('stat-grid').innerHTML = cards.map(function (c) {
-    return '<div class="stat-card"><div class="value">' + c[1] + '</div><div class="label">' + c[0] + '</div></div>';
+
+  // Hero: dua angka paling penting
+  document.getElementById('hero-grid').innerHTML =
+    '<div class="hero-card">' +
+      '<div class="hero-label">Total Barang Terdaftar</div>' +
+      '<div class="hero-value">' + s.total_barang.toLocaleString('id-ID') + '</div>' +
+      '<div class="hero-sub">unit aset tercatat di SIDAFI</div>' +
+    '</div>' +
+    '<div class="hero-card accent-red">' +
+      '<div class="hero-label">Total Nilai Aset</div>' +
+      '<div class="hero-value">' + rupiah(s.total_nilai) + '</div>' +
+      '<div class="hero-sub">akumulasi harga perolehan</div>' +
+    '</div>';
+
+  // Status bar proporsional
+  const statusKeys = ['tersedia', 'dipinjam', 'rusak', 'diusulkan_hapus', 'dihapus'];
+  const total = statusKeys.reduce(function (sum, k) { return sum + (s[k] || 0); }, 0) || 1;
+  document.getElementById('status-bar').innerHTML = statusKeys.map(function (k) {
+    const pct = ((s[k] || 0) / total * 100).toFixed(1);
+    return '<div class="status-bar-segment" style="width:' + pct + '%;background:' + STATUS_COLORS[k] + ';" title="' + STATUS_LABELS[k] + ': ' + s[k] + '"></div>';
   }).join('');
+  document.getElementById('status-legend').innerHTML = statusKeys.map(function (k) {
+    return '<span class="status-legend-item"><span class="status-legend-dot" style="background:' + STATUS_COLORS[k] + ';"></span>' +
+      STATUS_LABELS[k] + ' (' + (s[k] || 0) + ')</span>';
+  }).join('');
+
+  // Notice cards (aktif, bisa diklik ke tab terkait)
+  const kerusakanIssue = s.kerusakan_belum_selesai > 0;
+  const penghapusanIssue = s.penghapusan_menunggu > 0;
+  document.getElementById('notice-grid').innerHTML =
+    '<div class="notice-card ' + (kerusakanIssue ? 'has-issue' : 'all-clear') + '" onclick="switchView(\'kerusakan\')">' +
+      '<div><div class="notice-text">Kerusakan Belum Selesai</div>' +
+      '<div class="notice-sub">' + (kerusakanIssue ? 'Perlu tindak lanjut' : 'Semua kerusakan sudah ditangani') + '</div></div>' +
+      '<div class="notice-count">' + s.kerusakan_belum_selesai + '</div>' +
+    '</div>' +
+    '<div class="notice-card ' + (penghapusanIssue ? 'has-issue' : 'all-clear') + '" onclick="switchView(\'penghapusan\')">' +
+      '<div><div class="notice-text">Penghapusan Menunggu Keputusan</div>' +
+      '<div class="notice-sub">' + (penghapusanIssue ? 'Menunggu persetujuan admin/kepsek' : 'Tidak ada usulan tertunda') + '</div></div>' +
+      '<div class="notice-count">' + s.penghapusan_menunggu + '</div>' +
+    '</div>';
 }
 
 // ---------------- RUANGAN (dropdown cache) ----------------
@@ -147,8 +212,12 @@ async function loadRuanganDropdownData() {
 function ruanganOptions(selected) {
   return STATE.ruanganList.map(function (r) {
     return '<option value="' + r.kode_ruangan + '"' + (r.kode_ruangan === selected ? ' selected' : '') + '>' +
-      r.nama_ruangan + ' (' + r.kode_ruangan + ')</option>';
+      r.nama_ruangan + '</option>';
   }).join('');
+}
+function roomName(kodeRuangan) {
+  const r = STATE.ruanganList.find(function (x) { return x.kode_ruangan === kodeRuangan; });
+  return r ? r.nama_ruangan : (kodeRuangan || '-');
 }
 
 // ---------------- REFERENSI KODE (dropdown cache) ----------------
@@ -173,7 +242,7 @@ function jenisBarangOptionsForGolongan(golongan, selected) {
   const list = STATE.referensiList.filter(function (r) { return r.golongan_barang === golongan; });
   return '<option value="">-- pilih jenis barang --</option>' + list.map(function (r) {
     return '<option value="' + r.jenis_barang + '" data-kode="' + r.kode_klasifikasi + '"' +
-      (r.jenis_barang === selected ? ' selected' : '') + '>' + r.jenis_barang + ' (' + r.kode_klasifikasi + ')</option>';
+      (r.jenis_barang === selected ? ' selected' : '') + '>' + r.jenis_barang + '</option>';
   }).join('');
 }
 
@@ -196,7 +265,7 @@ async function loadBarang(page) {
       '<td class="mono">' + b.nomor_inventaris + '</td>' +
       '<td>' + b.jenis_barang + '<br><span style="color:#888;font-size:11.5px;">' + (b.spesifikasi || '') + '</span></td>' +
       '<td>' + b.golongan_barang + '</td>' +
-      '<td>' + b.kode_ruangan + '</td>' +
+      '<td>' + roomName(b.kode_ruangan) + '</td>' +
       '<td>' + badge(b.kondisi) + '</td>' +
       '<td>' + badge(b.status) + '</td>' +
       '<td class="row-actions">' +
@@ -229,7 +298,7 @@ function barangForm(data) {
     '<label>Nama Satuan<input id="f-satuan" value="' + (data.nama_satuan || 'Unit') + '" placeholder="Unit, Buah, Set, dst."></label>' +
     '<label>Tahun Perolehan<input required id="f-tahun" type="number" value="' + (data.tahun_perolehan || new Date().getFullYear()) + '"></label>' +
     '<label>Sumber Dana<input id="f-sumber" value="' + (data.sumber_dana || '') + '" placeholder="BOS, Yayasan, dst."></label>' +
-    '<label>Harga Perolehan (Rp)<input id="f-harga" type="number" value="' + (data.harga || 0) + '"></label>' +
+    '<label>Harga Perolehan (Rp)<input id="f-harga" type="text" inputmode="numeric" value="' + Number(data.harga || 0).toLocaleString('id-ID') + '"></label>' +
     '<label>No. Bukti / Nota<input id="f-bukti" value="' + (data.no_bukti_nota || '') + '"></label>' +
     '<label>Link Foto Barang<input id="f-foto-barang" value="' + (data.foto_barang || '') + '" placeholder="Tempel link Google Drive"></label>' +
     '<label>Link Foto Nota<input id="f-foto-nota" value="' + (data.foto_nota || '') + '" placeholder="Tempel link Google Drive"></label>' +
@@ -260,6 +329,7 @@ function bindGolonganCascade() {
 document.getElementById('btn-new-barang').addEventListener('click', function () {
   openModal('Barang Baru', barangForm());
   bindGolonganCascade();
+  attachRupiahMask(document.getElementById('f-harga'));
   bindBarangFormSubmit(null);
 });
 
@@ -267,6 +337,7 @@ function editBarang(nomorInventaris) {
   const data = STATE.barangList.find(function (b) { return b.nomor_inventaris === nomorInventaris; });
   openModal('Ubah Barang — ' + nomorInventaris, barangForm(data));
   bindGolonganCascade();
+  attachRupiahMask(document.getElementById('f-harga'));
   bindBarangFormSubmit(nomorInventaris);
 }
 
@@ -283,7 +354,7 @@ function bindBarangFormSubmit(nomorInventaris) {
         nama_satuan: document.getElementById('f-satuan').value,
         tahun_perolehan: document.getElementById('f-tahun').value,
         sumber_dana: document.getElementById('f-sumber').value,
-        harga: document.getElementById('f-harga').value,
+        harga: rawNumber(document.getElementById('f-harga')),
         no_bukti_nota: document.getElementById('f-bukti').value,
         foto_barang: document.getElementById('f-foto-barang').value,
         foto_nota: document.getElementById('f-foto-nota').value,
@@ -323,7 +394,7 @@ async function loadPeminjaman() {
     const aksi = p.status === 'dipinjam'
       ? '<button onclick="kembalikanPinjam(\'' + p.id_pinjam + '\')">Kembalikan</button>' : '-';
     return '<tr><td class="mono">' + p.id_pinjam + '</td><td>' + p.nomor_inventaris + '</td>' +
-      '<td>' + p.nama_peminjam + '</td><td>' + (p.keperluan || '-') + '</td><td>' + p.ruangan_tujuan + '</td>' +
+      '<td>' + p.nama_peminjam + '</td><td>' + (p.keperluan || '-') + '</td><td>' + roomName(p.ruangan_tujuan) + '</td>' +
       '<td>' + fmtDate(p.tanggal_pinjam) + '</td><td>' + fmtDate(p.rencana_kembali) + '</td>' +
       '<td>' + badge(p.status) + '</td><td class="row-actions">' + aksi + '</td></tr>';
   }).join('') || '<tr><td colspan="9" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
@@ -338,6 +409,7 @@ document.getElementById('btn-new-peminjaman').addEventListener('click', function
     '<label>Rencana Kembali<input type="date" id="p-rencana"></label>' +
     '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
     '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Ajukan</button></div></form>');
+  attachNomorInventarisMask(document.getElementById('p-kode'));
 
   document.getElementById('form-pinjam').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -391,6 +463,7 @@ document.getElementById('btn-new-kerusakan').addEventListener('click', function 
     '<label>Deskripsi<textarea required id="r-deskripsi"></textarea></label>' +
     '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
     '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Laporkan</button></div></form>');
+  attachNomorInventarisMask(document.getElementById('r-kode'));
 
   document.getElementById('form-rusak').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -447,6 +520,7 @@ document.getElementById('btn-new-perawatan').addEventListener('click', function 
     '<label>Keterangan<textarea id="w-ket"></textarea></label>' +
     '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
     '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Simpan</button></div></form>');
+  attachNomorInventarisMask(document.getElementById('w-kode'));
 
   document.getElementById('form-rawat').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -492,6 +566,7 @@ document.getElementById('btn-new-penghapusan').addEventListener('click', functio
     '<label>Alasan Penghapusan<textarea required id="h-alasan" placeholder="Rusak berat & tidak ekonomis diperbaiki, dst."></textarea></label>' +
     '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
     '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Ajukan</button></div></form>');
+  attachNomorInventarisMask(document.getElementById('h-kode'));
 
   document.getElementById('form-hapus').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -577,39 +652,51 @@ async function loadReferensi() {
   STATE.referensiList = res.data;
   document.querySelector('#table-referensi tbody').innerHTML = res.data.map(function (r) {
     return '<tr><td>' + r.golongan_barang + '</td><td class="mono">' + r.kode_golongan + '</td>' +
-      '<td>' + r.jenis_barang + '</td><td class="mono">' + r.kode_klasifikasi + '</td></tr>';
-  }).join('') || '<tr><td colspan="4" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+      '<td>' + r.jenis_barang + '</td><td class="mono">' + r.kode_klasifikasi + '</td>' +
+      '<td class="row-actions"><button onclick="hapusReferensi(\'' + r.kode_klasifikasi + '\')">Hapus</button></td></tr>';
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
 document.getElementById('btn-new-referensi').addEventListener('click', function () {
-  openModal('Kode Klasifikasi Baru', '<form id="form-referensi">' +
-    '<label>Golongan Barang<input required id="rf-golongan" placeholder="Alat Elektronik"></label>' +
-    '<label>Kode Golongan<input id="rf-kode-golongan" placeholder="02.03"></label>' +
-    '<label>Jenis Barang<input required id="rf-jenis" placeholder="Proyektor"></label>' +
-    '<label>Kode Klasifikasi<input required id="rf-kode" placeholder="02.03.29"></label>' +
+  const golonganUnik = [...new Set(STATE.referensiList.map(function (r) { return r.golongan_barang; }))];
+  openModal('Jenis Barang Baru', '<form id="form-referensi">' +
+    '<label>Golongan Barang<input required id="rf-golongan" list="rf-golongan-list" placeholder="Pilih yang sudah ada, atau ketik golongan baru"></label>' +
+    '<datalist id="rf-golongan-list">' + golonganUnik.map(function (g) { return '<option value="' + g + '">'; }).join('') + '</datalist>' +
+    '<label>Kode Golongan <span style="font-weight:400;color:#888;">(isi hanya jika golongan di atas baru)</span><input id="rf-kode-golongan" placeholder="Contoh: 02.14"></label>' +
+    '<label>Jenis Barang<input required id="rf-jenis" placeholder="Contoh: Proyektor"></label>' +
+    '<p style="font-size:12px;color:#888;margin-top:-4px;">Kode Klasifikasi akan dibuat otomatis, melanjutkan nomor urut terakhir pada golongan tsb.</p>' +
     '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
     '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Simpan</button></div></form>');
 
   document.getElementById('form-referensi').addEventListener('submit', async function (e) {
     e.preventDefault();
     try {
-      await api('saveReferensiKode', {
+      const res = await api('saveReferensiKode', {
         golongan_barang: document.getElementById('rf-golongan').value,
         kode_golongan: document.getElementById('rf-kode-golongan').value,
-        jenis_barang: document.getElementById('rf-jenis').value,
-        kode_klasifikasi: document.getElementById('rf-kode').value
+        jenis_barang: document.getElementById('rf-jenis').value
       });
-      closeModal(); toast('Kode klasifikasi berhasil disimpan.'); loadReferensi(); loadReferensiDropdownData();
+      closeModal();
+      toast('Jenis barang berhasil ditambahkan (kode: ' + res.kode_klasifikasi + ').');
+      loadReferensi(); loadReferensiDropdownData();
     } catch (err) { toast(err.message, true); }
   });
 });
+
+async function hapusReferensi(kodeKlasifikasi) {
+  if (!confirm('Hapus jenis barang dengan kode ' + kodeKlasifikasi + '? Barang yang sudah memakai kode ini di data Barang tidak akan terhapus.')) return;
+  try {
+    await api('deleteReferensiKode', { kode_klasifikasi: kodeKlasifikasi });
+    toast('Jenis barang berhasil dihapus.'); loadReferensi(); loadReferensiDropdownData();
+  } catch (err) { toast(err.message, true); }
+}
 
 // ---------------- USERS (admin) ----------------
 async function loadUsers() {
   const res = await api('listUsers', {});
   document.querySelector('#table-users tbody').innerHTML = res.data.map(function (u) {
     return '<tr><td class="mono">' + u.username + '</td><td>' + u.nama + '</td>' +
-      '<td>' + u.role + '</td><td>' + (u.kode_ruangan || '-') + '</td>' +
+      '<td>' + u.role + '</td><td>' + (u.kode_ruangan ? roomName(u.kode_ruangan) : '-') + '</td>' +
       '<td>' + badge(u.status) + '</td>' +
       '<td class="row-actions"><button onclick="editUser(\'' + u.username + '\')">Ubah</button></td></tr>';
   }).join('') || '<tr><td colspan="6" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
