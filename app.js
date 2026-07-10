@@ -286,6 +286,61 @@ async function loadBarang(page) {
   document.getElementById(id).addEventListener('change', function () { loadBarang(1); });
 });
 
+function dropzoneInnerHtml(url) {
+  if (url) {
+    return '<img class="dz-preview" src="' + url + '" onerror="this.style.display=\'none\'">' +
+      '<div class="dz-filename">Foto tersimpan</div>' +
+      '<span class="dz-remove" onclick="event.stopPropagation(); clearDropzone(this)">Hapus foto</span>';
+  }
+  return '<div class="dz-text">Klik atau <strong>seret file gambar</strong> ke sini</div>';
+}
+
+function clearDropzone(removeBtn) {
+  const zone = removeBtn.closest('.dropzone');
+  const hidden = zone.nextElementSibling;
+  hidden.value = '';
+  zone.innerHTML = dropzoneInnerHtml('');
+}
+
+function attachDropzone(zoneId, fileInputId, hiddenInputId, kategori) {
+  const zone = document.getElementById(zoneId);
+  const fileInput = document.getElementById(fileInputId);
+  const hidden = document.getElementById(hiddenInputId);
+
+  zone.addEventListener('click', function (e) {
+    if (!e.target.classList.contains('dz-remove')) fileInput.click();
+  });
+  zone.addEventListener('dragover', function (e) { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', function () { zone.classList.remove('dragover'); });
+  zone.addEventListener('drop', function (e) {
+    e.preventDefault(); zone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) handleFotoFile(e.dataTransfer.files[0], zone, hidden, kategori);
+  });
+  fileInput.addEventListener('change', function () {
+    if (fileInput.files.length) handleFotoFile(fileInput.files[0], zone, hidden, kategori);
+  });
+}
+
+async function handleFotoFile(file, zone, hidden, kategori) {
+  if (!file.type.startsWith('image/')) { toast('File harus berupa gambar.', true); return; }
+  zone.innerHTML = '<div class="dz-text">Mengunggah...</div>';
+  try {
+    const base64 = await new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () { resolve(reader.result.split(',')[1]); };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const res = await api('uploadFoto', { base64: base64, mimeType: file.type, filename: file.name, kategori: kategori });
+    hidden.value = res.url;
+    zone.innerHTML = dropzoneInnerHtml(res.url);
+    toast('Foto berhasil diunggah.');
+  } catch (err) {
+    zone.innerHTML = dropzoneInnerHtml('');
+    toast(err.message, true);
+  }
+}
+
 function barangForm(data) {
   data = data || {};
   return '<form id="form-barang">' +
@@ -300,8 +355,12 @@ function barangForm(data) {
     '<label>Sumber Dana<input id="f-sumber" value="' + (data.sumber_dana || '') + '" placeholder="BOS, Yayasan, dst."></label>' +
     '<label>Harga Perolehan (Rp)<input id="f-harga" type="text" inputmode="numeric" value="' + Number(data.harga || 0).toLocaleString('id-ID') + '"></label>' +
     '<label>No. Bukti / Nota<input id="f-bukti" value="' + (data.no_bukti_nota || '') + '"></label>' +
-    '<label>Link Foto Barang<input id="f-foto-barang" value="' + (data.foto_barang || '') + '" placeholder="Tempel link Google Drive"></label>' +
-    '<label>Link Foto Nota<input id="f-foto-nota" value="' + (data.foto_nota || '') + '" placeholder="Tempel link Google Drive"></label>' +
+    '<label>Foto Barang<div class="dropzone" id="dz-foto-barang">' + dropzoneInnerHtml(data.foto_barang) + '</div>' +
+      '<input type="hidden" id="f-foto-barang" value="' + (data.foto_barang || '') + '">' +
+      '<input type="file" id="file-foto-barang" accept="image/*" style="display:none;"></label>' +
+    '<label>Foto Nota<div class="dropzone" id="dz-foto-nota">' + dropzoneInnerHtml(data.foto_nota) + '</div>' +
+      '<input type="hidden" id="f-foto-nota" value="' + (data.foto_nota || '') + '">' +
+      '<input type="file" id="file-foto-nota" accept="image/*" style="display:none;"></label>' +
     '<label>Kondisi<select id="f-kondisi">' +
       ['baik', 'rusak ringan', 'rusak berat'].map(function (k) {
         return '<option value="' + k + '"' + (data.kondisi === k ? ' selected' : '') + '>' + k + '</option>';
@@ -330,6 +389,8 @@ document.getElementById('btn-new-barang').addEventListener('click', function () 
   openModal('Barang Baru', barangForm());
   bindGolonganCascade();
   attachRupiahMask(document.getElementById('f-harga'));
+  attachDropzone('dz-foto-barang', 'file-foto-barang', 'f-foto-barang', 'barang');
+  attachDropzone('dz-foto-nota', 'file-foto-nota', 'f-foto-nota', 'nota');
   bindBarangFormSubmit(null);
 });
 
@@ -338,6 +399,8 @@ function editBarang(nomorInventaris) {
   openModal('Ubah Barang — ' + nomorInventaris, barangForm(data));
   bindGolonganCascade();
   attachRupiahMask(document.getElementById('f-harga'));
+  attachDropzone('dz-foto-barang', 'file-foto-barang', 'f-foto-barang', 'barang');
+  attachDropzone('dz-foto-nota', 'file-foto-nota', 'f-foto-nota', 'nota');
   bindBarangFormSubmit(nomorInventaris);
 }
 
@@ -388,16 +451,43 @@ function downloadBase64Pdf(base64, fileName) {
 }
 
 // ---------------- PEMINJAMAN ----------------
+let PEMINJAMAN_CACHE = [];
 async function loadPeminjaman() {
   const res = await api('listPeminjaman', {});
+  PEMINJAMAN_CACHE = res.data;
   document.querySelector('#table-peminjaman tbody').innerHTML = res.data.map(function (p) {
-    const aksi = p.status === 'dipinjam'
-      ? '<button onclick="kembalikanPinjam(\'' + p.id_pinjam + '\')">Kembalikan</button>' : '-';
-    return '<tr><td class="mono">' + p.id_pinjam + '</td><td>' + p.nomor_inventaris + '</td>' +
-      '<td>' + p.nama_peminjam + '</td><td>' + (p.keperluan || '-') + '</td><td>' + roomName(p.ruangan_tujuan) + '</td>' +
-      '<td>' + fmtDate(p.tanggal_pinjam) + '</td><td>' + fmtDate(p.rencana_kembali) + '</td>' +
-      '<td>' + badge(p.status) + '</td><td class="row-actions">' + aksi + '</td></tr>';
-  }).join('') || '<tr><td colspan="9" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+    return '<tr>' +
+      '<td class="item-name-cell">' + p.jenis_barang + '<span class="item-sub">' + p.nomor_inventaris + '</span></td>' +
+      '<td>' + p.nama_peminjam + '</td><td>' + (p.keperluan || '-') + '</td>' +
+      '<td>' + fmtDate(p.tanggal_pinjam) + '</td>' +
+      '<td class="row-actions"><button onclick="detailPeminjaman(\'' + p.id_pinjam + '\')">Detail</button></td></tr>';
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+}
+
+function detailPeminjaman(id) {
+  const p = PEMINJAMAN_CACHE.find(function (x) { return x.id_pinjam === id; });
+  if (!p) return;
+  const rows = [
+    ['ID Peminjaman', p.id_pinjam],
+    ['Nomor Inventaris', p.nomor_inventaris],
+    ['Jenis Barang', p.jenis_barang + (p.spesifikasi ? ' — ' + p.spesifikasi : '')],
+    ['Nama Peminjam', p.nama_peminjam],
+    ['Keperluan', p.keperluan || '-'],
+    ['Ruangan Asal', roomName(p.ruangan_asal)],
+    ['Ruangan Tujuan', roomName(p.ruangan_tujuan)],
+    ['Tanggal Pinjam', fmtDate(p.tanggal_pinjam)],
+    ['Rencana Kembali', fmtDate(p.rencana_kembali)],
+    ['Tanggal Kembali Aktual', fmtDate(p.tanggal_kembali_aktual)],
+    ['Kondisi Saat Pinjam', p.kondisi_saat_pinjam],
+    ['Kondisi Saat Kembali', p.kondisi_saat_kembali || '-'],
+    ['Status', p.status],
+    ['Dicatat Oleh', p.dicatat_oleh]
+  ];
+  const detailHtml = '<div class="detail-list">' + rows.map(function (r) {
+    return '<div class="detail-row"><span class="dl-label">' + r[0] + '</span><span class="dl-value">' + r[1] + '</span></div>';
+  }).join('') + '</div>' +
+  (p.status === 'dipinjam' ? '<div class="modal-footer"><button class="btn-primary" onclick="closeModal(); kembalikanPinjam(\'' + p.id_pinjam + '\')">Kembalikan Barang</button></div>' : '');
+  openModal('Detail Peminjaman', detailHtml);
 }
 
 document.getElementById('btn-new-peminjaman').addEventListener('click', function () {
@@ -444,16 +534,41 @@ async function kembalikanPinjam(id) {
 }
 
 // ---------------- KERUSAKAN ----------------
+let KERUSAKAN_CACHE = [];
 async function loadKerusakan() {
   const res = await api('listKerusakan', {});
+  KERUSAKAN_CACHE = res.data;
   document.querySelector('#table-kerusakan tbody').innerHTML = res.data.map(function (k) {
-    const aksi = k.status_penanganan !== 'selesai'
-      ? '<button onclick="prosesKerusakan(\'' + k.id_lapor + '\')">Proses/Selesai</button>' : '-';
-    return '<tr><td class="mono">' + k.id_lapor + '</td><td>' + k.nomor_inventaris + '</td>' +
-      '<td>' + fmtDate(k.tanggal_lapor) + '</td><td>' + k.pelapor + '</td>' +
-      '<td>' + k.deskripsi + '</td><td>' + badge(k.tingkat_kerusakan) + '</td>' +
-      '<td>' + badge(k.status_penanganan) + '</td><td class="row-actions">' + aksi + '</td></tr>';
-  }).join('') || '<tr><td colspan="8" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+    return '<tr>' +
+      '<td class="item-name-cell">' + k.jenis_barang + '<span class="item-sub">' + k.nomor_inventaris + '</span></td>' +
+      '<td>' + roomName(k.kode_ruangan_barang) + '</td>' +
+      '<td>' + fmtDate(k.tanggal_lapor) + '</td>' +
+      '<td>' + badge(k.status_penanganan) + '</td>' +
+      '<td class="row-actions"><button onclick="detailKerusakan(\'' + k.id_lapor + '\')">Detail</button></td></tr>';
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+}
+
+function detailKerusakan(id) {
+  const k = KERUSAKAN_CACHE.find(function (x) { return x.id_lapor === id; });
+  if (!k) return;
+  const rows = [
+    ['ID Laporan', k.id_lapor],
+    ['Nomor Inventaris', k.nomor_inventaris],
+    ['Jenis Barang', k.jenis_barang + (k.spesifikasi ? ' — ' + k.spesifikasi : '')],
+    ['Ruangan', roomName(k.kode_ruangan_barang)],
+    ['Tanggal Lapor', fmtDate(k.tanggal_lapor)],
+    ['Pelapor', k.pelapor],
+    ['Deskripsi', k.deskripsi],
+    ['Tingkat Kerusakan', k.tingkat_kerusakan],
+    ['Status Penanganan', k.status_penanganan],
+    ['Tindak Lanjut', k.tindak_lanjut || '-'],
+    ['Tanggal Selesai', fmtDate(k.tanggal_selesai)]
+  ];
+  const detailHtml = '<div class="detail-list">' + rows.map(function (r) {
+    return '<div class="detail-row"><span class="dl-label">' + r[0] + '</span><span class="dl-value">' + r[1] + '</span></div>';
+  }).join('') + '</div>' +
+  (k.status_penanganan !== 'selesai' ? '<div class="modal-footer"><button class="btn-primary" onclick="closeModal(); prosesKerusakan(\'' + k.id_lapor + '\')">Proses / Selesaikan</button></div>' : '');
+  openModal('Detail Kerusakan', detailHtml);
 }
 
 document.getElementById('btn-new-kerusakan').addEventListener('click', function () {
@@ -499,13 +614,36 @@ function prosesKerusakan(id) {
 }
 
 // ---------------- PERAWATAN ----------------
+let PERAWATAN_CACHE = [];
 async function loadPerawatan() {
   const res = await api('listPerawatan', {});
+  PERAWATAN_CACHE = res.data;
   document.querySelector('#table-perawatan tbody').innerHTML = res.data.map(function (p) {
-    return '<tr><td class="mono">' + p.id_rawat + '</td><td>' + p.nomor_inventaris + '</td>' +
+    return '<tr>' +
+      '<td class="item-name-cell">' + p.jenis_barang + '<span class="item-sub">' + p.nomor_inventaris + '</span></td>' +
+      '<td>' + roomName(p.kode_ruangan_barang) + '</td>' +
       '<td>' + fmtDate(p.tanggal) + '</td><td>' + p.jenis_perawatan + '</td>' +
-      '<td>' + p.pelaksana + '</td><td>' + rupiah(p.biaya) + '</td><td>' + (p.keterangan || '-') + '</td></tr>';
-  }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+      '<td class="row-actions"><button onclick="detailPerawatan(\'' + p.id_rawat + '\')">Detail</button></td></tr>';
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+}
+
+function detailPerawatan(id) {
+  const p = PERAWATAN_CACHE.find(function (x) { return x.id_rawat === id; });
+  if (!p) return;
+  const rows = [
+    ['ID Perawatan', p.id_rawat],
+    ['Nomor Inventaris', p.nomor_inventaris],
+    ['Jenis Barang', p.jenis_barang + (p.spesifikasi ? ' — ' + p.spesifikasi : '')],
+    ['Ruangan', roomName(p.kode_ruangan_barang)],
+    ['Tanggal', fmtDate(p.tanggal)],
+    ['Jenis Perawatan', p.jenis_perawatan],
+    ['Pelaksana', p.pelaksana || '-'],
+    ['Biaya', rupiah(p.biaya)],
+    ['Keterangan', p.keterangan || '-']
+  ];
+  openModal('Detail Perawatan', '<div class="detail-list">' + rows.map(function (r) {
+    return '<div class="detail-row"><span class="dl-label">' + r[0] + '</span><span class="dl-value">' + r[1] + '</span></div>';
+  }).join('') + '</div>');
 }
 
 document.getElementById('btn-new-perawatan').addEventListener('click', function () {
@@ -540,21 +678,48 @@ document.getElementById('btn-new-perawatan').addEventListener('click', function 
 
 // ---------------- PENGHAPUSAN ----------------
 const KATEGORI_PENGHAPUSAN = ['Rusak Berat', 'Rusak Ringan', 'Hilang', 'Usang', 'Habis Pakai', 'Dihibahkan'];
+let PENGHAPUSAN_CACHE = [];
 
 async function loadPenghapusan() {
   const res = await api('listPenghapusan', {});
-  const isApprover = STATE.user.role === 'admin' || STATE.user.role === 'kepala_sekolah';
+  PENGHAPUSAN_CACHE = res.data;
   document.querySelector('#table-penghapusan tbody').innerHTML = res.data.map(function (p) {
-    let aksi = '-';
-    if (p.status === 'diusulkan' && isApprover) {
-      aksi = '<button onclick="putuskanHapus(\'' + p.id_hapus + '\',\'disetujui\')">Setujui</button>' +
-        ' <button onclick="putuskanHapus(\'' + p.id_hapus + '\',\'ditolak\')">Tolak</button>';
-    }
-    return '<tr><td class="mono">' + p.id_hapus + '</td><td>' + p.nomor_inventaris + '</td>' +
-      '<td>' + fmtDate(p.tanggal_usulan) + '</td><td>' + badge(p.kategori) + '</td><td>' + p.alasan + '</td>' +
-      '<td>' + badge(p.status) + '</td><td>' + (p.disetujui_oleh || '-') + '</td>' +
-      '<td class="row-actions">' + aksi + '</td></tr>';
-  }).join('') || '<tr><td colspan="8" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+    return '<tr>' +
+      '<td class="item-name-cell">' + p.jenis_barang + '<span class="item-sub">' + p.nomor_inventaris + '</span></td>' +
+      '<td>' + badge(p.kategori) + '</td>' +
+      '<td>' + fmtDate(p.tanggal_usulan) + '</td>' +
+      '<td>' + badge(p.status) + '</td>' +
+      '<td class="row-actions"><button onclick="detailPenghapusan(\'' + p.id_hapus + '\')">Detail</button></td></tr>';
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+}
+
+function detailPenghapusan(id) {
+  const p = PENGHAPUSAN_CACHE.find(function (x) { return x.id_hapus === id; });
+  if (!p) return;
+  const isApprover = STATE.user.role === 'admin' || STATE.user.role === 'kepala_sekolah';
+  const rows = [
+    ['ID Penghapusan', p.id_hapus],
+    ['Nomor Inventaris', p.nomor_inventaris],
+    ['Jenis Barang', p.jenis_barang + (p.spesifikasi ? ' — ' + p.spesifikasi : '')],
+    ['Tanggal Usulan', fmtDate(p.tanggal_usulan)],
+    ['Diusulkan Oleh', p.diusulkan_oleh],
+    ['Kategori', p.kategori],
+    ['Alasan', p.alasan],
+    ['Status', p.status],
+    ['Disetujui/Ditolak Oleh', p.disetujui_oleh || '-'],
+    ['Tanggal Keputusan', fmtDate(p.tanggal_keputusan)],
+    ['Nomor BA', p.nomor_ba || '-'],
+    ['Keterangan', p.keterangan || '-']
+  ];
+  const detailHtml = '<div class="detail-list">' + rows.map(function (r) {
+    return '<div class="detail-row"><span class="dl-label">' + r[0] + '</span><span class="dl-value">' + r[1] + '</span></div>';
+  }).join('') + '</div>' +
+  (p.status === 'diusulkan' && isApprover ?
+    '<div class="modal-footer">' +
+      '<button class="btn-secondary" onclick="closeModal(); putuskanHapus(\'' + p.id_hapus + '\',\'ditolak\')">Tolak</button>' +
+      '<button class="btn-primary" onclick="closeModal(); putuskanHapus(\'' + p.id_hapus + '\',\'disetujui\')">Setujui</button>' +
+    '</div>' : '');
+  openModal('Detail Penghapusan', detailHtml);
 }
 
 document.getElementById('btn-new-penghapusan').addEventListener('click', function () {
