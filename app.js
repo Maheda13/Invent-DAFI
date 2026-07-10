@@ -2,7 +2,7 @@
 // KONFIGURASI - ganti dengan URL Web App Apps Script Anda
 // ============================================================
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbw9xc588RU649jf4-ynuSQwVH7k7ZwWV4z0QTEielC0LI0OY-utdTSngK2OPr9CHA4b/exec'
+  API_URL: 'https://script.google.com/macros/s/AKfycbxX_s_No2NZLOSbWGadwolw9IsFDHDIU1gC_elL8kzJF7ty8izdK7-kqv9VH4Me8DOM/exec'
 };
 
 let STATE = {
