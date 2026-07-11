@@ -2,7 +2,7 @@
 // KONFIGURASI - ganti dengan URL Web App Apps Script Anda
 // ============================================================
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbyRph3hF5NQPYfsf2-dFIMb8tNEw38cJIZRMbMQAyNOUTHDGwKaWTsPm6-n-mQm4m8B/exec'
+  API_URL: 'GANTI_DENGAN_URL_WEB_APP_ANDA'
 };
 
 let STATE = {
@@ -17,15 +17,40 @@ let STATE = {
 // ---------------- API HELPER ----------------
 // Catatan: Content-Type text/plain sengaja dipakai supaya browser TIDAK
 // mengirim preflight OPTIONS (Apps Script tidak bisa menangani OPTIONS).
+let activeRequests = 0;
+function showLoading() {
+  activeRequests++;
+  document.getElementById('loading-bar').classList.remove('hidden');
+}
+function hideLoading() {
+  activeRequests = Math.max(0, activeRequests - 1);
+  if (activeRequests === 0) document.getElementById('loading-bar').classList.add('hidden');
+}
+
 async function api(action, payload) {
-  const res = await fetch(CONFIG.API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, token: STATE.token, payload: payload || {} })
-  });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.message || 'Terjadi kesalahan.');
-  return data;
+  showLoading();
+  try {
+    const res = await fetch(CONFIG.API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action, token: STATE.token, payload: payload || {} })
+    });
+    const data = await res.json();
+    if (!data.success) {
+      if (data.code === 'SESSION_EXPIRED') { handleSessionExpired(); }
+      throw new Error(data.message || 'Terjadi kesalahan.');
+    }
+    return data;
+  } finally {
+    hideLoading();
+  }
+}
+
+// Baris "Memuat..." dipasang sesaat sebelum request tabel dikirim,
+// supaya pengguna tahu aplikasi sedang bekerja (bukan macet).
+function showTableLoading(tbodySelector, colspan) {
+  const tbody = document.querySelector(tbodySelector);
+  if (tbody) tbody.innerHTML = '<tr class="table-loading-row"><td colspan="' + colspan + '">Memuat data...</td></tr>';
 }
 
 function toast(message, isError) {
@@ -34,6 +59,22 @@ function toast(message, isError) {
   el.className = 'toast' + (isError ? ' error' : '');
   el.classList.remove('hidden');
   setTimeout(function () { el.classList.add('hidden'); }, 3200);
+}
+
+// Dipanggil otomatis saat backend menandai sesi sudah kadaluarsa (poin 3).
+// Membersihkan token lokal dan langsung mengarahkan ke layar login,
+// tanpa menunggu pengguna mengklik apa pun.
+let sessionExpiredHandled = false;
+function handleSessionExpired() {
+  if (sessionExpiredHandled) return; // hindari trigger berkali-kali kalau ada beberapa request paralel
+  sessionExpiredHandled = true;
+  STATE.token = null; STATE.user = null;
+  localStorage.removeItem('sidafi_token'); localStorage.removeItem('sidafi_user');
+  document.getElementById('modal-overlay').classList.add('hidden');
+  document.getElementById('print-preview-overlay').classList.add('hidden');
+  document.getElementById('view-app').classList.add('hidden');
+  document.getElementById('view-login').classList.remove('hidden');
+  document.getElementById('login-error').textContent = 'Sesi Anda telah berakhir. Silakan login kembali.';
 }
 
 // ---------------- LOGIN ----------------
@@ -47,6 +88,7 @@ document.getElementById('form-login').addEventListener('submit', async function 
     const res = await api('login', { username, password });
     STATE.token = res.token;
     STATE.user = res.user;
+    sessionExpiredHandled = false;
     localStorage.setItem('sidafi_token', res.token);
     localStorage.setItem('sidafi_user', JSON.stringify(res.user));
     enterApp();
@@ -70,9 +112,21 @@ function enterApp() {
   if (STATE.user.role !== 'admin') {
     document.querySelectorAll('.admin-only').forEach(function (el) { el.classList.add('hidden'); });
   }
-  loadRuanganDropdownData();
-  loadReferensiDropdownData();
+  loadBootstrapData();
   switchView('dashboard');
+}
+
+// Ambil Ruangan + Referensi Kode sekaligus dalam 1 request (lebih cepat
+// daripada 2 request terpisah saat baru login).
+async function loadBootstrapData() {
+  const res = await api('getBootstrapData', {});
+  STATE.ruanganList = res.data.ruangan;
+  STATE.referensiList = res.data.referensiKode;
+
+  const golonganUnik = [...new Set(STATE.referensiList.map(function (r) { return r.golongan_barang; }))];
+  const filterGol = document.getElementById('filter-golongan');
+  filterGol.innerHTML = '<option value="">Semua Golongan</option>' +
+    golonganUnik.map(function (g) { return '<option value="' + g + '">' + g + '</option>'; }).join('');
 }
 
 if (STATE.token && STATE.user) enterApp();
@@ -248,6 +302,7 @@ function jenisBarangOptionsForGolongan(golongan, selected) {
 
 // ---------------- BARANG ----------------
 async function loadBarang(page) {
+  showTableLoading('#table-barang tbody', 7);
   const payload = {
     page: page || 1,
     pageSize: 20,
@@ -286,6 +341,16 @@ async function loadBarang(page) {
   document.getElementById(id).addEventListener('change', function () { loadBarang(1); });
 });
 
+/* ==============================================================
+ * FITUR UPLOAD FOTO (DROPZONE) DIBEKUKAN SEMENTARA
+ * Alasan: bergantung pada DriveApp yang bermasalah di beberapa akun
+ * Google Workspace sekolah ("Akses ditolak: DriveApp"). Form Barang
+ * untuk sementara memakai input link manual (lihat barangForm()).
+ * Fungsi-fungsi di bawah ini disimpan agar mudah diaktifkan lagi
+ * begitu solusi DriveApp ditemukan - tinggal panggil attachDropzone()
+ * lagi di btn-new-barang/editBarang, dan kembalikan markup dropzone
+ * di barangForm().
+ *
 function dropzoneInnerHtml(url) {
   if (url) {
     return '<img class="dz-preview" src="' + url + '" onerror="this.style.display=\'none\'">' +
@@ -340,6 +405,7 @@ async function handleFotoFile(file, zone, hidden, kategori) {
     toast(err.message, true);
   }
 }
+ * ============================================================== */
 
 function barangForm(data) {
   data = data || {};
@@ -355,12 +421,6 @@ function barangForm(data) {
     '<label>Sumber Dana<input id="f-sumber" value="' + (data.sumber_dana || '') + '" placeholder="BOS, Yayasan, dst."></label>' +
     '<label>Harga Perolehan (Rp)<input id="f-harga" type="text" inputmode="numeric" value="' + Number(data.harga || 0).toLocaleString('id-ID') + '"></label>' +
     '<label>No. Bukti / Nota<input id="f-bukti" value="' + (data.no_bukti_nota || '') + '"></label>' +
-    '<label>Foto Barang<div class="dropzone" id="dz-foto-barang">' + dropzoneInnerHtml(data.foto_barang) + '</div>' +
-      '<input type="hidden" id="f-foto-barang" value="' + (data.foto_barang || '') + '">' +
-      '<input type="file" id="file-foto-barang" accept="image/*" style="display:none;"></label>' +
-    '<label>Foto Nota<div class="dropzone" id="dz-foto-nota">' + dropzoneInnerHtml(data.foto_nota) + '</div>' +
-      '<input type="hidden" id="f-foto-nota" value="' + (data.foto_nota || '') + '">' +
-      '<input type="file" id="file-foto-nota" accept="image/*" style="display:none;"></label>' +
     '<label>Kondisi<select id="f-kondisi">' +
       ['baik', 'rusak ringan', 'rusak berat'].map(function (k) {
         return '<option value="' + k + '"' + (data.kondisi === k ? ' selected' : '') + '>' + k + '</option>';
@@ -389,8 +449,6 @@ document.getElementById('btn-new-barang').addEventListener('click', function () 
   openModal('Barang Baru', barangForm());
   bindGolonganCascade();
   attachRupiahMask(document.getElementById('f-harga'));
-  attachDropzone('dz-foto-barang', 'file-foto-barang', 'f-foto-barang', 'barang');
-  attachDropzone('dz-foto-nota', 'file-foto-nota', 'f-foto-nota', 'nota');
   bindBarangFormSubmit(null);
 });
 
@@ -399,8 +457,6 @@ function editBarang(nomorInventaris) {
   openModal('Ubah Barang — ' + nomorInventaris, barangForm(data));
   bindGolonganCascade();
   attachRupiahMask(document.getElementById('f-harga'));
-  attachDropzone('dz-foto-barang', 'file-foto-barang', 'f-foto-barang', 'barang');
-  attachDropzone('dz-foto-nota', 'file-foto-nota', 'f-foto-nota', 'nota');
   bindBarangFormSubmit(nomorInventaris);
 }
 
@@ -419,8 +475,6 @@ function bindBarangFormSubmit(nomorInventaris) {
         sumber_dana: document.getElementById('f-sumber').value,
         harga: rawNumber(document.getElementById('f-harga')),
         no_bukti_nota: document.getElementById('f-bukti').value,
-        foto_barang: document.getElementById('f-foto-barang').value,
-        foto_nota: document.getElementById('f-foto-nota').value,
         kondisi: document.getElementById('f-kondisi').value,
         kode_ruangan: document.getElementById('f-ruangan').value,
         keterangan: document.getElementById('f-ket').value
@@ -430,29 +484,79 @@ function bindBarangFormSubmit(nomorInventaris) {
   });
 }
 
-async function printKIB(nomorInventaris) {
-  toast('Menyiapkan PDF KIB...');
-  try {
-    const res = await api('cetakKIB', { nomor_inventaris: nomorInventaris });
-    downloadBase64Pdf(res.base64, res.fileName);
-  } catch (err) { toast(err.message, true); }
+// Info kop surat cetak KIB/KIR - silakan sesuaikan dengan data resmi sekolah Anda
+const SEKOLAH_INFO = {
+  nama: 'PESANTREN AL QUR\'AN SCIENCE DAFI',
+  alamat: 'Sarirogo, Kecamatan Sidoarjo, Kabupaten Sidoarjo, Jawa Timur',
+  kontak: 'dafi.sch.id'
+};
+
+// ---------------- PRINT PREVIEW (KIB/KIR tanpa DriveApp) ----------------
+function letterheadHtml() {
+  return '<div class="print-letterhead">' +
+    '<img src="assets/logo-dafi.png" alt="Logo">' +
+    '<div><div class="print-school-name">' + SEKOLAH_INFO.nama + '</div>' +
+    '<div class="print-school-addr">' + SEKOLAH_INFO.alamat + '</div>' +
+    '<div class="print-school-addr">' + SEKOLAH_INFO.kontak + '</div></div>' +
+    '</div><hr class="print-divider">';
 }
 
-function downloadBase64Pdf(base64, fileName) {
-  const bytes = atob(base64);
-  const arr = new Uint8Array(bytes.length);
-  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-  const blob = new Blob([arr], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = fileName;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+function infoRow(label, value) {
+  return '<tr><td class="dl-k">' + label + '</td><td class="dl-sep">:</td><td>' + (value || '-') + '</td></tr>';
+}
+
+function showPrintPreview(html, orientation) {
+  document.getElementById('print-area').innerHTML = html;
+  let pageStyle = document.getElementById('dynamic-page-style');
+  if (!pageStyle) {
+    pageStyle = document.createElement('style');
+    pageStyle.id = 'dynamic-page-style';
+    document.head.appendChild(pageStyle);
+  }
+  pageStyle.textContent = '@page { size: A4 ' + orientation + '; margin: 0; }';
+  document.getElementById('print-preview-overlay').classList.remove('hidden');
+}
+document.getElementById('btn-close-print').addEventListener('click', function () {
+  document.getElementById('print-preview-overlay').classList.add('hidden');
+});
+document.getElementById('btn-print-now').addEventListener('click', function () { window.print(); });
+
+async function printKIB(nomorInventaris) {
+  try {
+    const res = await api('getBarang', { nomor_inventaris: nomorInventaris });
+    const b = res.data;
+    const rows = [
+      ['Nomor Inventaris', b.nomor_inventaris],
+      ['Kode Klasifikasi', b.kode_klasifikasi],
+      ['Golongan Barang', b.golongan_barang],
+      ['Jenis Barang', b.jenis_barang],
+      ['Spesifikasi', b.spesifikasi],
+      ['Satuan', b.nama_satuan],
+      ['Tahun Perolehan', b.tahun_perolehan],
+      ['Sumber Dana', b.sumber_dana],
+      ['Harga Perolehan', rupiah(b.harga)],
+      ['No. Bukti / Nota', b.no_bukti_nota],
+      ['Kondisi', b.kondisi],
+      ['Lokasi / Ruangan', roomName(b.kode_ruangan)],
+      ['Status', b.status],
+      ['Keterangan', b.keterangan]
+    ];
+    const html = '<div class="print-page portrait">' + letterheadHtml() +
+      '<div class="print-title">KARTU INVENTARIS BARANG (KIB)</div>' +
+      '<table class="print-info-table">' + rows.map(function (r) { return infoRow(r[0], r[1]); }).join('') + '</table>' +
+      '<div class="print-date">Dicetak: ' + new Date().toLocaleDateString('id-ID') + '</div>' +
+      '<div class="print-signature">' +
+        '<div class="sig-block">Mengetahui,<div class="sig-space"></div>(.....................)</div>' +
+        '<div class="sig-block">Petugas,<div class="sig-space"></div>(.....................)</div>' +
+      '</div></div>';
+    showPrintPreview(html, 'portrait');
+  } catch (err) { toast(err.message, true); }
 }
 
 // ---------------- PEMINJAMAN ----------------
 let PEMINJAMAN_CACHE = [];
 async function loadPeminjaman() {
+  showTableLoading('#table-peminjaman tbody', 5);
   const res = await api('listPeminjaman', {});
   PEMINJAMAN_CACHE = res.data;
   document.querySelector('#table-peminjaman tbody').innerHTML = res.data.map(function (p) {
@@ -536,6 +640,7 @@ async function kembalikanPinjam(id) {
 // ---------------- KERUSAKAN ----------------
 let KERUSAKAN_CACHE = [];
 async function loadKerusakan() {
+  showTableLoading('#table-kerusakan tbody', 5);
   const res = await api('listKerusakan', {});
   KERUSAKAN_CACHE = res.data;
   document.querySelector('#table-kerusakan tbody').innerHTML = res.data.map(function (k) {
@@ -616,6 +721,7 @@ function prosesKerusakan(id) {
 // ---------------- PERAWATAN ----------------
 let PERAWATAN_CACHE = [];
 async function loadPerawatan() {
+  showTableLoading('#table-perawatan tbody', 5);
   const res = await api('listPerawatan', {});
   PERAWATAN_CACHE = res.data;
   document.querySelector('#table-perawatan tbody').innerHTML = res.data.map(function (p) {
@@ -681,6 +787,7 @@ const KATEGORI_PENGHAPUSAN = ['Rusak Berat', 'Rusak Ringan', 'Hilang', 'Usang', 
 let PENGHAPUSAN_CACHE = [];
 
 async function loadPenghapusan() {
+  showTableLoading('#table-penghapusan tbody', 5);
   const res = await api('listPenghapusan', {});
   PENGHAPUSAN_CACHE = res.data;
   document.querySelector('#table-penghapusan tbody').innerHTML = res.data.map(function (p) {
@@ -769,6 +876,7 @@ function putuskanHapus(id, status) {
 
 // ---------------- RUANGAN ----------------
 async function loadRuangan() {
+  showTableLoading('#table-ruangan tbody', 6);
   const res = await api('listRuangan', {});
   STATE.ruanganList = res.data;
   document.querySelector('#table-ruangan tbody').innerHTML = res.data.map(function (r) {
@@ -804,15 +912,40 @@ document.getElementById('btn-new-ruangan').addEventListener('click', function ()
 });
 
 async function printKIR(kode) {
-  toast('Menyiapkan PDF KIR...');
   try {
-    const res = await api('cetakKIR', { kode_ruangan: kode });
-    downloadBase64Pdf(res.base64, res.fileName);
+    const ruangan = STATE.ruanganList.find(function (r) { return r.kode_ruangan === kode; });
+    const res = await api('listBarang', { kode_ruangan: kode, pageSize: 9999, status: '' });
+    const items = res.data.filter(function (b) { return b.status !== 'dihapus'; });
+    let total = 0;
+    const bodyRows = items.map(function (b, idx) {
+      total += Number(b.harga) || 0;
+      return '<tr><td>' + (idx + 1) + '</td><td>' + b.nomor_inventaris + '</td><td>' + b.jenis_barang + '</td>' +
+        '<td>' + (b.spesifikasi || '-') + '</td><td>' + b.tahun_perolehan + '</td><td>' + b.kondisi + '</td>' +
+        '<td class="num">' + rupiah(b.harga) + '</td></tr>';
+    }).join('');
+    const html = '<div class="print-page landscape">' + letterheadHtml() +
+      '<div class="print-title">KARTU INVENTARIS RUANGAN (KIR)</div>' +
+      '<table class="print-info-table">' +
+        infoRow('Ruangan', (ruangan ? ruangan.nama_ruangan : kode)) +
+        infoRow('Lokasi', (ruangan ? ruangan.area + ' - Gedung ' + ruangan.gedung : '-')) +
+      '</table>' +
+      '<table class="print-data-table"><thead><tr>' +
+        '<th>No</th><th>Nomor Inventaris</th><th>Jenis Barang</th><th>Spesifikasi</th>' +
+        '<th>Tahun</th><th>Kondisi</th><th>Harga Perolehan</th>' +
+      '</tr></thead><tbody>' + bodyRows +
+      '<tr><td colspan="6" style="text-align:right;font-weight:bold;">TOTAL</td><td class="num" style="font-weight:bold;">' + rupiah(total) + '</td></tr>' +
+      '</tbody></table>' +
+      '<div class="print-date">Dicetak: ' + new Date().toLocaleDateString('id-ID') + '</div>' +
+      '<div class="print-signature">' +
+        '<div class="sig-block">Penanggung Jawab Ruangan,<div class="sig-space"></div>(.....................)</div>' +
+      '</div></div>';
+    showPrintPreview(html, 'landscape');
   } catch (err) { toast(err.message, true); }
 }
 
 // ---------------- REFERENSI KODE (admin) ----------------
 async function loadReferensi() {
+  showTableLoading('#table-referensi tbody', 5);
   const res = await api('listReferensiKode', {});
   STATE.referensiList = res.data;
   document.querySelector('#table-referensi tbody').innerHTML = res.data.map(function (r) {
@@ -858,6 +991,7 @@ async function hapusReferensi(kodeKlasifikasi) {
 
 // ---------------- USERS (admin) ----------------
 async function loadUsers() {
+  showTableLoading('#table-users tbody', 6);
   const res = await api('listUsers', {});
   document.querySelector('#table-users tbody').innerHTML = res.data.map(function (u) {
     return '<tr><td class="mono">' + u.username + '</td><td>' + u.nama + '</td>' +
