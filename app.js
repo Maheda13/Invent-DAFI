@@ -486,10 +486,21 @@ function bindBarangFormSubmit(nomorInventaris) {
 
 // Info kop surat cetak KIB/KIR - silakan sesuaikan dengan data resmi sekolah Anda
 const SEKOLAH_INFO = {
-  nama: 'PESANTREN AL QUR\'AN SCIENCE DAFI',
+  nama: 'DAFI PESANTREN AL QUR\'AN SCIENCE',
   alamat: 'Sarirogo, Kecamatan Sidoarjo, Kabupaten Sidoarjo, Jawa Timur',
   kontak: 'dafi.sch.id'
 };
+
+// Nama Kepala Sekolah untuk baris "Mengetahui," di setiap dokumen cetak.
+// Silakan ganti dengan nama resmi.
+const KEPALA_SEKOLAH_NAMA = 'Uswatun Aisah, M.Pd.';
+
+// Blok tanda tangan 2 kolom. Kalau nama diisi, otomatis dicetak di
+// bawah kolom tanda tangan; kalau kosong, tampil garis titik-titik.
+function sigBlock(label, nama) {
+  return '<div class="sig-block">' + label + ',<div class="sig-space"></div>' +
+    '<div class="sig-name">' + (nama ? nama : '(.....................)') + '</div></div>';
+}
 
 // ---------------- PRINT PREVIEW (KIB/KIR tanpa DriveApp) ----------------
 function letterheadHtml() {
@@ -521,33 +532,60 @@ document.getElementById('btn-close-print').addEventListener('click', function ()
 });
 document.getElementById('btn-print-now').addEventListener('click', function () { window.print(); });
 
+function roomAreaRuangan(kodeRuangan) {
+  const r = STATE.ruanganList.find(function (x) { return x.kode_ruangan === kodeRuangan; });
+  if (!r) return kodeRuangan || '-';
+  return (r.area || '-') + ' - ' + (r.nama_ruangan || '-');
+}
+
 async function printKIB(nomorInventaris) {
   try {
-    const res = await api('getBarang', { nomor_inventaris: nomorInventaris });
-    const b = res.data;
+    const [barangRes, perawatanRes] = await Promise.all([
+      api('getBarang', { nomor_inventaris: nomorInventaris }),
+      api('listPerawatan', { nomor_inventaris: nomorInventaris })
+    ]);
+    const b = barangRes.data;
+    const riwayat = perawatanRes.data;
+
     const rows = [
       ['Nomor Inventaris', b.nomor_inventaris],
-      ['Kode Klasifikasi', b.kode_klasifikasi],
       ['Golongan Barang', b.golongan_barang],
       ['Jenis Barang', b.jenis_barang],
-      ['Spesifikasi', b.spesifikasi],
-      ['Satuan', b.nama_satuan],
+      ['Merk / Spesifikasi', b.spesifikasi],
       ['Tahun Perolehan', b.tahun_perolehan],
       ['Sumber Dana', b.sumber_dana],
       ['Harga Perolehan', rupiah(b.harga)],
-      ['No. Bukti / Nota', b.no_bukti_nota],
+      ['No. Transaksi / Nota', b.no_bukti_nota],
       ['Kondisi', b.kondisi],
-      ['Lokasi / Ruangan', roomName(b.kode_ruangan)],
+      ['Lokasi', roomAreaRuangan(b.kode_ruangan)],
       ['Status', b.status],
       ['Keterangan', b.keterangan]
     ];
+
+    const riwayatTableHtml = riwayat.length
+      ? '<table class="print-data-table"><thead><tr>' +
+          '<th>Tanggal</th><th>Jenis Perawatan</th><th>Pelaksana</th><th>Biaya</th><th>Keterangan</th>' +
+        '</tr></thead><tbody>' +
+        riwayat.map(function (r) {
+          return '<tr><td>' + fmtDate(r.tanggal) + '</td><td>' + r.jenis_perawatan + '</td>' +
+            '<td>' + (r.pelaksana || '-') + '</td><td>' + rupiah(r.biaya) + '</td>' +
+            '<td>' + (r.keterangan || '-') + '</td></tr>';
+        }).join('') + '</tbody></table>'
+      : '<div class="print-empty-note">Belum ada riwayat perawatan untuk barang ini.</div>';
+
+    const roomInfo = STATE.ruanganList.find(function (r) { return r.kode_ruangan === b.kode_ruangan; });
+
     const html = '<div class="print-page portrait">' + letterheadHtml() +
       '<div class="print-title">KARTU INVENTARIS BARANG (KIB)</div>' +
-      '<table class="print-info-table">' + rows.map(function (r) { return infoRow(r[0], r[1]); }).join('') + '</table>' +
+      '<table class="print-info-table">' + rows.map(function (r, i) {
+        return infoRow((i + 1) + '. ' + r[0], r[1]);
+      }).join('') + '</table>' +
+      '<div class="print-subtitle">13. Tabel Riwayat Perawatan</div>' +
+      riwayatTableHtml +
       '<div class="print-date">Dicetak: ' + new Date().toLocaleDateString('id-ID') + '</div>' +
       '<div class="print-signature">' +
-        '<div class="sig-block">Mengetahui,<div class="sig-space"></div>(.....................)</div>' +
-        '<div class="sig-block">Petugas,<div class="sig-space"></div>(.....................)</div>' +
+        sigBlock('Mengetahui,<br>Kepala Sekolah', KEPALA_SEKOLAH_NAMA) +
+        sigBlock('Penanggung Jawab', roomInfo ? roomInfo.penanggung_jawab : '') +
       '</div></div>';
     showPrintPreview(html, 'portrait');
   } catch (err) { toast(err.message, true); }
@@ -937,7 +975,8 @@ async function printKIR(kode) {
       '</tbody></table>' +
       '<div class="print-date">Dicetak: ' + new Date().toLocaleDateString('id-ID') + '</div>' +
       '<div class="print-signature">' +
-        '<div class="sig-block">Penanggung Jawab Ruangan,<div class="sig-space"></div>(.....................)</div>' +
+        sigBlock('Mengetahui,<br>Kepala Sekolah', KEPALA_SEKOLAH_NAMA) +
+        sigBlock('Penanggung Jawab Ruangan', ruangan ? ruangan.penanggung_jawab : '') +
       '</div></div>';
     showPrintPreview(html, 'landscape');
   } catch (err) { toast(err.message, true); }
