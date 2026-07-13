@@ -2,7 +2,7 @@
 // KONFIGURASI - ganti dengan URL Web App Apps Script Anda
 // ============================================================
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbydByfmWJVAOy3YzBtEVdhOHsh1ClnV82y7GOfle1KHwhAxERUx-JL7ZX4PdaXnRQ40/exec'
+  API_URL: 'https://script.google.com/macros/s/AKfycbxMyG-pTKUAhBXMlmOnPavuVC2xZM3xtYP5W6gPRjF6o2bGi_JRr2enqJYRAf5pW0nt/exec'
 };
 
 let STATE = {
@@ -11,7 +11,8 @@ let STATE = {
   barangPage: 1,
   ruanganList: [],
   barangList: [],
-  referensiList: []
+  referensiList: [],
+  pengaturan: { kepala_sekolah_nama: '', waka_sarpras_nama: '' }
 };
 
 // ---------------- API HELPER ----------------
@@ -122,6 +123,7 @@ async function loadBootstrapData() {
   const res = await api('getBootstrapData', {});
   STATE.ruanganList = res.data.ruangan;
   STATE.referensiList = res.data.referensiKode;
+  STATE.pengaturan = res.data.pengaturan || {};
 
   const golonganUnik = [...new Set(STATE.referensiList.map(function (r) { return r.golongan_barang; }))];
   const filterGol = document.getElementById('filter-golongan');
@@ -150,6 +152,7 @@ function switchView(view) {
   if (view === 'ruangan') loadRuangan();
   if (view === 'referensi') loadReferensi();
   if (view === 'users') loadUsers();
+  if (view === 'pengaturan') loadPengaturanForm();
 }
 
 // ---------------- MODAL HELPER ----------------
@@ -484,16 +487,14 @@ function bindBarangFormSubmit(nomorInventaris) {
   });
 }
 
-// Info kop surat cetak KIB/KIR - silakan sesuaikan dengan data resmi sekolah Anda
+// Info kop surat cetak KIB/KIR - dipakai untuk teks alt saja; tampilan
+// visual kop surat sekarang memakai gambar background dari sekolah
+// (lihat printBgImage()). SEKOLAH_INFO tidak lagi dipakai untuk render.
 const SEKOLAH_INFO = {
-  nama: 'DAFI PESANTREN AL QUR\'AN SCIENCE',
+  nama: 'PESANTREN AL QUR\'AN SCIENCE DAFI',
   alamat: 'Sarirogo, Kecamatan Sidoarjo, Kabupaten Sidoarjo, Jawa Timur',
   kontak: 'dafi.sch.id'
 };
-
-// Nama Kepala Sekolah untuk baris "Mengetahui," di setiap dokumen cetak.
-// Silakan ganti dengan nama resmi.
-const KEPALA_SEKOLAH_NAMA = 'Uswatun Aisah, M.Pd.';
 
 // Blok tanda tangan 2 kolom. Kalau nama diisi, otomatis dicetak di
 // bawah kolom tanda tangan; kalau kosong, tampil garis titik-titik.
@@ -502,16 +503,15 @@ function sigBlock(label, nama) {
     '<div class="sig-name">' + (nama ? nama : '(.....................)') + '</div></div>';
 }
 
-// ---------------- PRINT PREVIEW (KIB/KIR tanpa DriveApp) ----------------
-function letterheadHtml() {
-  return '<div class="print-letterhead">' +
-    '<img src="assets/logo-dafi.png" alt="Logo">' +
-    '<div><div class="print-school-name">' + SEKOLAH_INFO.nama + '</div>' +
-    '<div class="print-school-addr">' + SEKOLAH_INFO.alamat + '</div>' +
-    '<div class="print-school-addr">' + SEKOLAH_INFO.kontak + '</div></div>' +
-    '</div><hr class="print-divider">';
+// Gambar kop surat resmi (dari file assets/kop-surat-dafi.png) dipasang
+// sebagai background penuh halaman A4. Konten dokumen (judul, tabel,
+// tanda tangan) dibungkus .print-content dengan padding atas/bawah
+// yang disesuaikan supaya tidak menimpa header & elemen di kop surat.
+function printBgImage() {
+  return '<img class="print-bg" src="assets/kop-surat-dafi.png" alt="Kop Surat">';
 }
 
+// ---------------- PRINT PREVIEW (KIB/KIR tanpa DriveApp) ----------------
 function infoRow(label, value) {
   return '<tr><td class="dl-k">' + label + '</td><td class="dl-sep">:</td><td>' + (value || '-') + '</td></tr>';
 }
@@ -573,9 +573,8 @@ async function printKIB(nomorInventaris) {
         }).join('') + '</tbody></table>'
       : '<div class="print-empty-note">Belum ada riwayat perawatan untuk barang ini.</div>';
 
-    const roomInfo = STATE.ruanganList.find(function (r) { return r.kode_ruangan === b.kode_ruangan; });
-
-    const html = '<div class="print-page portrait">' + letterheadHtml() +
+    const html = '<div class="print-page portrait">' + printBgImage() +
+      '<div class="print-content">' +
       '<div class="print-title">KARTU INVENTARIS BARANG (KIB)</div>' +
       '<table class="print-info-table">' + rows.map(function (r, i) {
         return infoRow((i + 1) + '. ' + r[0], r[1]);
@@ -584,9 +583,9 @@ async function printKIB(nomorInventaris) {
       riwayatTableHtml +
       '<div class="print-date">Dicetak: ' + new Date().toLocaleDateString('id-ID') + '</div>' +
       '<div class="print-signature">' +
-        sigBlock('Mengetahui,<br>Kepala Sekolah', KEPALA_SEKOLAH_NAMA) +
-        sigBlock('Penanggung Jawab', roomInfo ? roomInfo.penanggung_jawab : '') +
-      '</div></div>';
+        sigBlock('Mengetahui,<br>Kepala Sekolah', STATE.pengaturan.kepala_sekolah_nama) +
+        sigBlock('Penanggung Jawab', STATE.pengaturan.waka_sarpras_nama) +
+      '</div></div></div>';
     showPrintPreview(html, 'portrait');
   } catch (err) { toast(err.message, true); }
 }
@@ -961,7 +960,8 @@ async function printKIR(kode) {
         '<td>' + (b.spesifikasi || '-') + '</td><td>' + b.tahun_perolehan + '</td><td>' + b.kondisi + '</td>' +
         '<td class="num">' + rupiah(b.harga) + '</td></tr>';
     }).join('');
-    const html = '<div class="print-page landscape">' + letterheadHtml() +
+    const html = '<div class="print-page portrait">' + printBgImage() +
+      '<div class="print-content">' +
       '<div class="print-title">KARTU INVENTARIS RUANGAN (KIR)</div>' +
       '<table class="print-info-table">' +
         infoRow('Ruangan', (ruangan ? ruangan.nama_ruangan : kode)) +
@@ -975,10 +975,10 @@ async function printKIR(kode) {
       '</tbody></table>' +
       '<div class="print-date">Dicetak: ' + new Date().toLocaleDateString('id-ID') + '</div>' +
       '<div class="print-signature">' +
-        sigBlock('Mengetahui,<br>Kepala Sekolah', KEPALA_SEKOLAH_NAMA) +
-        sigBlock('Penanggung Jawab Ruangan', ruangan ? ruangan.penanggung_jawab : '') +
-      '</div></div>';
-    showPrintPreview(html, 'landscape');
+        sigBlock('Mengetahui,<br>Kepala Sekolah', STATE.pengaturan.kepala_sekolah_nama) +
+        sigBlock('Penanggung Jawab Ruangan', STATE.pengaturan.waka_sarpras_nama) +
+      '</div></div></div>';
+    showPrintPreview(html, 'portrait');
   } catch (err) { toast(err.message, true); }
 }
 
@@ -1089,3 +1089,22 @@ function editUser(username) {
     } catch (err) { toast(err.message, true); }
   });
 }
+
+// ---------------- PENGATURAN (admin) ----------------
+function loadPengaturanForm() {
+  document.getElementById('pg-kepsek').value = STATE.pengaturan.kepala_sekolah_nama || '';
+  document.getElementById('pg-waka').value = STATE.pengaturan.waka_sarpras_nama || '';
+}
+
+document.getElementById('form-pengaturan').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  try {
+    const payload = {
+      kepala_sekolah_nama: document.getElementById('pg-kepsek').value,
+      waka_sarpras_nama: document.getElementById('pg-waka').value
+    };
+    await api('savePengaturan', payload);
+    STATE.pengaturan = Object.assign({}, STATE.pengaturan, payload);
+    toast('Pengaturan berhasil disimpan.');
+  } catch (err) { toast(err.message, true); }
+});
