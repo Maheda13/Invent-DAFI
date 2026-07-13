@@ -953,30 +953,81 @@ async function printKIR(kode) {
     const ruangan = STATE.ruanganList.find(function (r) { return r.kode_ruangan === kode; });
     const res = await api('listBarang', { kode_ruangan: kode, pageSize: 9999, status: '' });
     const items = res.data.filter(function (b) { return b.status !== 'dihapus'; });
-    let total = 0;
-    const bodyRows = items.map(function (b, idx) {
-      total += Number(b.harga) || 0;
-      return '<tr><td>' + (idx + 1) + '</td><td>' + b.nomor_inventaris + '</td><td>' + b.jenis_barang + '</td>' +
-        '<td>' + (b.spesifikasi || '-') + '</td><td>' + b.tahun_perolehan + '</td><td>' + b.kondisi + '</td>' +
-        '<td class="num">' + rupiah(b.harga) + '</td></tr>';
-    }).join('');
+
+    // Kelompokkan per (Jenis Barang + Spesifikasi) supaya barang sejenis
+    // (mis. 20 kursi peserta didik) tampil sebagai satu baris dengan jumlah,
+    // bukan diulang satu-satu per nomor inventaris.
+    const groups = {};
+    const groupOrder = [];
+    items.forEach(function (b) {
+      const key = b.jenis_barang + '|' + (b.spesifikasi || '');
+      if (!groups[key]) {
+        groups[key] = { jenis_barang: b.jenis_barang, spesifikasi: b.spesifikasi, satuan: b.nama_satuan, kondisi: {}, nomorList: [] };
+        groupOrder.push(key);
+      }
+      const kondisi = b.kondisi || 'baik';
+      groups[key].kondisi[kondisi] = (groups[key].kondisi[kondisi] || 0) + 1;
+      groups[key].nomorList.push(b.nomor_inventaris);
+    });
+
+    const KONDISI_LABEL = { 'baik': 'Baik', 'rusak ringan': 'Rusak Ringan', 'rusak berat': 'Rusak Berat' };
+    function formatKondisi(kondisiMap) {
+      const keys = Object.keys(kondisiMap);
+      if (keys.length === 1) return (KONDISI_LABEL[keys[0]] || keys[0]);
+      return keys.map(function (k) { return (KONDISI_LABEL[k] || k) + ': ' + kondisiMap[k]; }).join(', ');
+    }
+
+    // Menyingkat daftar Nomor Inventaris yang berurutan, mis. empat nomor
+    // 02.01.03.2023.012 s/d .015 menjadi "02.01.03.2023.012-015". Nomor
+    // yang beda tahun/kode klasifikasi atau tidak berurutan dipisah koma.
+    function formatNomorInventarisRanges(nomorList) {
+      const byPrefix = {}; const order = [];
+      nomorList.forEach(function (n) {
+        const idx = n.lastIndexOf('.');
+        const prefix = n.substring(0, idx);
+        const urut = parseInt(n.substring(idx + 1), 10);
+        if (!byPrefix[prefix]) { byPrefix[prefix] = []; order.push(prefix); }
+        byPrefix[prefix].push(urut);
+      });
+      const parts = [];
+      order.forEach(function (prefix) {
+        const sorted = byPrefix[prefix].slice().sort(function (a, b) { return a - b; });
+        let start = sorted[0], prev = sorted[0];
+        for (let i = 1; i <= sorted.length; i++) {
+          if (i < sorted.length && sorted[i] === prev + 1) { prev = sorted[i]; continue; }
+          const padStart = String(start).padStart(3, '0');
+          parts.push(start === prev ? (prefix + '.' + padStart) : (prefix + '.' + padStart + '-' + String(prev).padStart(3, '0')));
+          if (i < sorted.length) { start = sorted[i]; prev = sorted[i]; }
+        }
+      });
+      return parts.join(', ');
+    }
+
+    const bodyRows = groupOrder.map(function (key, idx) {
+      const g = groups[key];
+      const jumlah = Object.values(g.kondisi).reduce(function (a, b) { return a + b; }, 0);
+      const namaBarang = g.jenis_barang + (g.spesifikasi ? ' — ' + g.spesifikasi : '');
+      return '<tr><td>' + (idx + 1) + '</td><td class="mono" style="font-size:9px;">' + formatNomorInventarisRanges(g.nomorList) + '</td>' +
+        '<td>' + namaBarang + '</td>' +
+        '<td>' + jumlah + ' ' + (g.satuan || 'unit') + '</td>' +
+        '<td>' + formatKondisi(g.kondisi) + '</td></tr>';
+    }).join('') || '<tr><td colspan="5" style="text-align:center;">Belum ada barang di ruangan ini.</td></tr>';
+
     const html = '<div class="print-page portrait">' + printBgImage() +
       '<div class="print-content">' +
       '<div class="print-title">KARTU INVENTARIS RUANGAN (KIR)</div>' +
       '<table class="print-info-table">' +
-        infoRow('Ruangan', (ruangan ? ruangan.nama_ruangan : kode)) +
-        infoRow('Lokasi', (ruangan ? ruangan.area + ' - Gedung ' + ruangan.gedung : '-')) +
+        infoRow('1. Nama Ruangan', (ruangan ? ruangan.nama_ruangan : kode)) +
+        infoRow('2. Penanggungjawab Ruangan', (ruangan ? ruangan.penanggung_jawab : '-')) +
       '</table>' +
+      '<div class="print-subtitle">3. Tabel Inventaris</div>' +
       '<table class="print-data-table"><thead><tr>' +
-        '<th>No</th><th>Nomor Inventaris</th><th>Jenis Barang</th><th>Spesifikasi</th>' +
-        '<th>Tahun</th><th>Kondisi</th><th>Harga Perolehan</th>' +
-      '</tr></thead><tbody>' + bodyRows +
-      '<tr><td colspan="6" style="text-align:right;font-weight:bold;">TOTAL</td><td class="num" style="font-weight:bold;">' + rupiah(total) + '</td></tr>' +
-      '</tbody></table>' +
+        '<th>No.</th><th>Nomor Inventaris</th><th>Nama Barang</th><th>Jumlah</th><th>Kondisi</th>' +
+      '</tr></thead><tbody>' + bodyRows + '</tbody></table>' +
       '<div class="print-date">Dicetak: ' + new Date().toLocaleDateString('id-ID') + '</div>' +
       '<div class="print-signature">' +
         sigBlock('Mengetahui,<br>Kepala Sekolah', STATE.pengaturan.kepala_sekolah_nama) +
-        sigBlock('Penanggung Jawab Ruangan', STATE.pengaturan.waka_sarpras_nama) +
+        sigBlock('Penanggung Jawab', STATE.pengaturan.waka_sarpras_nama) +
       '</div></div></div>';
     showPrintPreview(html, 'portrait');
   } catch (err) { toast(err.message, true); }
