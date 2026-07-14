@@ -333,11 +333,36 @@ async function loadBarang(page) {
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 
   const totalPages = Math.max(1, Math.ceil(res.total / res.pageSize));
-  let pagHtml = '';
-  for (let i = 1; i <= totalPages; i++) {
-    pagHtml += '<button class="' + (i === payload.page ? 'active' : '') + '" onclick="loadBarang(' + i + ')">' + i + '</button>';
+  document.getElementById('pagination-barang').innerHTML = buildPagination(payload.page, totalPages, 'loadBarang');
+}
+
+// Komponen pagination ringkas: tombol Prev/Next + nomor halaman terbatas
+// (halaman pertama, halaman sekitar posisi sekarang, halaman terakhir,
+// dipisah "..." kalau ada yang dilompati) supaya tidak menumpuk puluhan
+// tombol saat data banyak (mis. 50 halaman).
+function buildPagination(current, total, fnName) {
+  if (total <= 1) return '';
+
+  function btn(page, label, extraClass) {
+    return '<button class="' + (extraClass || '') + (page === current ? ' active' : '') + '" ' +
+      (page ? 'onclick="' + fnName + '(' + page + ')"' : 'disabled') + '>' + label + '</button>';
   }
-  document.getElementById('pagination-barang').innerHTML = pagHtml;
+
+  let html = '<span class="pagination-info">Halaman ' + current + ' dari ' + total + '</span>';
+  html += btn(current > 1 ? current - 1 : null, '‹ Sebelumnya', 'pg-nav');
+
+  const pages = new Set([1, total, current, current - 1, current + 1]);
+  let prevPage = 0;
+  Array.from(pages).filter(function (p) { return p >= 1 && p <= total; })
+    .sort(function (a, b) { return a - b; })
+    .forEach(function (p) {
+      if (prevPage && p - prevPage > 1) html += '<span class="pg-ellipsis">…</span>';
+      html += btn(p, String(p));
+      prevPage = p;
+    });
+
+  html += btn(current < total ? current + 1 : null, 'Berikutnya ›', 'pg-nav');
+  return html;
 }
 ['filter-search', 'filter-golongan', 'filter-kondisi', 'filter-status'].forEach(function (id) {
   document.getElementById(id).addEventListener('input', function () { loadBarang(1); });
