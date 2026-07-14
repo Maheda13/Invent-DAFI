@@ -271,6 +271,10 @@ td.mono, .kode-cell { font-family: var(--font-mono); font-size: 12.5px; }
 }
 #form-pengaturan input:focus { outline: none; border-color: var(--red); }
 
+.pengaturan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.pengaturan-card { background: #fff; border: 1px solid var(--border); border-top: 3px solid var(--red); border-radius: var(--radius); padding: 18px 20px; }
+.pengaturan-card-title { font-family: var(--font-display); font-weight: 700; font-size: 15px; margin-bottom: 14px; color: var(--black); }
+
 /* ---------- MODAL ---------- */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(26,26,26,0.5);
