@@ -249,12 +249,20 @@ td.mono, .kode-cell { font-family: var(--font-mono); font-size: 12.5px; }
 }
 .row-actions button:hover { text-decoration: underline; }
 
-.pagination { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+.pagination { display: flex; gap: 6px; margin-top: 12px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
 .pagination button {
   border: 1px solid var(--border); background: #fff; padding: 5px 11px;
   border-radius: var(--radius); cursor: pointer; font-size: 13px;
 }
 .pagination button.active { background: var(--red); color: #fff; border-color: var(--red); }
+.pagination button:disabled { opacity: 0.35; cursor: default; }
+.pagination button.pg-nav { font-weight: 600; }
+.pagination .pagination-info { font-size: 12px; color: var(--gray); margin-right: auto; }
+.pagination .pg-ellipsis { color: var(--gray); padding: 0 2px; }
+@media (max-width: 780px) {
+  .pagination { justify-content: center; }
+  .pagination .pagination-info { width: 100%; text-align: center; margin: 0 0 4px; }
+}
 
 #form-pengaturan label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 16px; color: #444; }
 #form-pengaturan input {
@@ -401,9 +409,28 @@ td.mono, .kode-cell { font-family: var(--font-mono); font-size: 12.5px; }
 
 @media (max-width: 780px) {
   .app-shell { flex-direction: column; height: 100vh; }
-  .sidebar { width: 100%; height: auto; flex-direction: row; overflow-x: auto; padding: 12px; align-items: center; }
+
+  .sidebar {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto;
+    width: 100%; height: 58px; flex-direction: row; align-items: center;
+    padding: 0 6px; z-index: 40; box-shadow: 0 -2px 12px rgba(0,0,0,0.18);
+  }
   .brand, .brand-user { display: none; }
-  .tabs { flex-direction: row; }
-  .btn-logout { margin: 0; }
-  .content { height: auto; flex: 1; padding: 20px; }
+
+  .tabs {
+    flex: 1; flex-direction: row; overflow-x: auto; gap: 2px; padding: 0 4px;
+    height: 100%; align-items: center;
+  }
+  .tab-btn {
+    flex-shrink: 0; height: 42px; padding: 0 12px; border-left: none;
+    border-bottom: 3px solid transparent; border-radius: 4px; font-size: 11px;
+    white-space: nowrap; display: flex; align-items: center;
+  }
+  .tab-btn.active { border-left-color: transparent; border-bottom-color: var(--red); }
+
+  .btn-logout {
+    flex-shrink: 0; margin: 0 0 0 4px; padding: 8px 10px; font-size: 11px;
+  }
+
+  .content { height: auto; flex: 1; overflow-y: auto; padding: 16px; padding-bottom: 78px; }
 }
