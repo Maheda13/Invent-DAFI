@@ -15,7 +15,7 @@
 <div id="view-login" class="login-screen">
   <div class="login-card">
     <img src="assets/logo-dafi.png" alt="Logo DAFI" class="login-logo">
-    <div class="login-mark">SI<span>DAFI</span></div>
+    <div class="login-mark">SI<span>DAFI</span>0.9</div>
     <p class="subtitle">SISTEM INVENTARISASI DIGITAL DAFI</p>
     <form id="form-login">
       <label>Username
@@ -35,8 +35,8 @@
   <aside class="sidebar">
     <div class="brand">
       <div class="brand-logo-chip"><img src="assets/logo-dafi.png" alt="Logo DAFI"></div>
-      <div class="brand-mark">SI<span>DAFI</span></div>
-      <div class="brand-tagline">SISTEM INVENTARISASI<br>DIGITAL DAFI</div>
+      <div class="brand-mark">SI<span>DAFI</span>0.9</div>
+      <div class="brand-tagline">SISTEM INVENTARISASI<br>DIGITAL DAFI ver 0.9</div>
     </div>
     <div class="brand-user" id="current-user-label"></div>
     <nav class="tabs">
@@ -79,6 +79,7 @@
       </div>
       <div class="filter-row">
         <input type="text" id="filter-search" placeholder="Cari nomor inventaris / jenis / spesifikasi...">
+        <select id="filter-institusi"><option value="">Semua Institusi</option></select>
         <select id="filter-golongan"><option value="">Semua Golongan</option></select>
         <select id="filter-kondisi">
           <option value="">Semua Kondisi</option>
@@ -98,7 +99,7 @@
       <div class="table-wrap">
         <table id="table-barang">
           <thead><tr>
-            <th>Nomor Inventaris</th><th>Jenis Barang</th><th>Golongan</th><th>Ruangan</th>
+            <th>Nomor Inventaris</th><th>Jenis Barang</th><th>Golongan</th><th>Institusi</th><th>Ruangan</th>
             <th>Kondisi</th><th>Status</th><th>Aksi</th>
           </tr></thead>
           <tbody></tbody>
@@ -180,7 +181,7 @@
       <div class="table-wrap">
         <table id="table-ruangan">
           <thead><tr>
-            <th>Kode</th><th>Area</th><th>Gedung</th><th>Nama Ruangan</th>
+            <th>Kode</th><th>Institusi</th><th>Area</th><th>Gedung</th><th>Nama Ruangan</th>
             <th>Penanggung Jawab</th><th>Aksi</th>
           </tr></thead>
           <tbody></tbody>
@@ -213,7 +214,7 @@
       <div class="table-wrap">
         <table id="table-users">
           <thead><tr>
-            <th>Username</th><th>Nama</th><th>Role</th><th>Ruangan</th><th>Status</th><th>Aksi</th>
+            <th>Username</th><th>Nama</th><th>Role</th><th>Institusi</th><th>Ruangan</th><th>Status</th><th>Aksi</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -223,19 +224,40 @@
     <!-- PENGATURAN (admin only) -->
     <section id="section-pengaturan" class="view-section hidden">
       <div class="section-header">
-        <h2>Pengaturan Dokumen Cetak</h2>
+        <h2>Pengaturan Dokumen Cetak per Institusi</h2>
       </div>
-      <div class="table-wrap" style="padding:22px 24px;max-width:480px;">
-        <form id="form-pengaturan">
-          <label>Nama Kepala Sekolah
-            <input id="pg-kepsek" placeholder="Contoh: Ahmad Fulan, S.Pd.">
-          </label>
-          <label>Nama Waka Sarana Prasarana <span style="font-weight:400;color:#888;">(tercetak sebagai Penanggung Jawab di KIB/KIR)</span>
-            <input id="pg-waka" placeholder="Contoh: Budi Santoso, S.Pd.">
-          </label>
-          <button type="submit" class="btn-primary" style="margin-top:8px;">Simpan Pengaturan</button>
-        </form>
-      </div>
+      <form id="form-pengaturan">
+        <div class="pengaturan-grid">
+          <div class="pengaturan-card">
+            <div class="pengaturan-card-title">SMP</div>
+            <label>Nama Kepala SMP
+              <input id="pg-smp-pimpinan" placeholder="Contoh: Ahmad Fulan, S.Pd.">
+            </label>
+            <label>Nama Waka Sarpras SMP
+              <input id="pg-smp-waka" placeholder="Contoh: Budi Santoso, S.Pd.">
+            </label>
+          </div>
+          <div class="pengaturan-card">
+            <div class="pengaturan-card-title">MA</div>
+            <label>Nama Kepala MA
+              <input id="pg-ma-pimpinan" placeholder="Contoh: Ahmad Fulan, S.Pd.">
+            </label>
+            <label>Nama Waka Sarpras MA
+              <input id="pg-ma-waka" placeholder="Contoh: Budi Santoso, S.Pd.">
+            </label>
+          </div>
+          <div class="pengaturan-card">
+            <div class="pengaturan-card-title">Pesantren</div>
+            <label>Nama Ketua Yayasan
+              <input id="pg-pesantren-pimpinan" placeholder="Contoh: KH. Ahmad Fulan">
+            </label>
+            <label>Nama Penanggung Jawab Sarpras
+              <input id="pg-pesantren-waka" placeholder="Contoh: Budi Santoso, S.Pd.">
+            </label>
+          </div>
+        </div>
+        <button type="submit" class="btn-primary" style="margin-top:16px;">Simpan Semua Pengaturan</button>
+      </form>
     </section>
 
   </main>
