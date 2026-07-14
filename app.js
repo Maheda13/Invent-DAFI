@@ -2,7 +2,7 @@
 // KONFIGURASI - ganti dengan URL Web App Apps Script Anda
 // ============================================================
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbxMyG-pTKUAhBXMlmOnPavuVC2xZM3xtYP5W6gPRjF6o2bGi_JRr2enqJYRAf5pW0nt/exec'
+  API_URL: 'https://script.google.com/macros/s/AKfycbwrD1uMgycikJfmVaErf7jJ1z94zZMCcAe9zCqfuA7Ozs9u2r88nOpT0Ju4SNBJ_TQ/exec'
 };
 
 let STATE = {
@@ -12,8 +12,17 @@ let STATE = {
   ruanganList: [],
   barangList: [],
   referensiList: [],
-  pengaturan: { kepala_sekolah_nama: '', waka_sarpras_nama: '' }
+  pengaturan: {}
 };
+
+const INSTITUSI_LIST = ['SMP', 'MA', 'Pesantren'];
+function institusiOptions(selected) {
+  return '<option value="">-- pilih institusi --</option>' + INSTITUSI_LIST.map(function (inst) {
+    return '<option value="' + inst + '"' + (inst === selected ? ' selected' : '') + '>' + inst + '</option>';
+  }).join('');
+}
+document.getElementById('filter-institusi').innerHTML = '<option value="">Semua Institusi</option>' +
+  INSTITUSI_LIST.map(function (inst) { return '<option value="' + inst + '">' + inst + '</option>'; }).join('');
 
 // ---------------- API HELPER ----------------
 // Catatan: Content-Type text/plain sengaja dipakai supaya browser TIDAK
@@ -276,6 +285,10 @@ function roomName(kodeRuangan) {
   const r = STATE.ruanganList.find(function (x) { return x.kode_ruangan === kodeRuangan; });
   return r ? r.nama_ruangan : (kodeRuangan || '-');
 }
+function roomInstitusi(kodeRuangan) {
+  const r = STATE.ruanganList.find(function (x) { return x.kode_ruangan === kodeRuangan; });
+  return r ? r.institusi : '';
+}
 
 // ---------------- REFERENSI KODE (dropdown cache) ----------------
 async function loadReferensiDropdownData() {
@@ -305,11 +318,12 @@ function jenisBarangOptionsForGolongan(golongan, selected) {
 
 // ---------------- BARANG ----------------
 async function loadBarang(page) {
-  showTableLoading('#table-barang tbody', 7);
+  showTableLoading('#table-barang tbody', 8);
   const payload = {
     page: page || 1,
     pageSize: 20,
     search: document.getElementById('filter-search').value,
+    institusi: document.getElementById('filter-institusi').value,
     golongan_barang: document.getElementById('filter-golongan').value,
     kondisi: document.getElementById('filter-kondisi').value,
     status: document.getElementById('filter-status').value
@@ -323,6 +337,7 @@ async function loadBarang(page) {
       '<td class="mono">' + b.nomor_inventaris + '</td>' +
       '<td>' + b.jenis_barang + '<br><span style="color:#888;font-size:11.5px;">' + (b.spesifikasi || '') + '</span></td>' +
       '<td>' + b.golongan_barang + '</td>' +
+      '<td>' + badge(roomInstitusi(b.kode_ruangan)) + '</td>' +
       '<td>' + roomName(b.kode_ruangan) + '</td>' +
       '<td>' + badge(b.kondisi) + '</td>' +
       '<td>' + badge(b.status) + '</td>' +
@@ -330,7 +345,7 @@ async function loadBarang(page) {
         '<button onclick="editBarang(\'' + b.nomor_inventaris + '\')">Ubah</button>' +
         '<button onclick="printKIB(\'' + b.nomor_inventaris + '\')">Cetak KIB</button>' +
       '</td></tr>';
-  }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 
   const totalPages = Math.max(1, Math.ceil(res.total / res.pageSize));
   document.getElementById('pagination-barang').innerHTML = buildPagination(payload.page, totalPages, 'loadBarang');
@@ -364,7 +379,7 @@ function buildPagination(current, total, fnName) {
   html += btn(current < total ? current + 1 : null, 'Berikutnya ›', 'pg-nav');
   return html;
 }
-['filter-search', 'filter-golongan', 'filter-kondisi', 'filter-status'].forEach(function (id) {
+['filter-search', 'filter-institusi', 'filter-golongan', 'filter-kondisi', 'filter-status'].forEach(function (id) {
   document.getElementById(id).addEventListener('input', function () { loadBarang(1); });
   document.getElementById(id).addEventListener('change', function () { loadBarang(1); });
 });
@@ -528,13 +543,24 @@ function sigBlock(label, nama) {
     '<div class="sig-name">' + (nama ? nama : '(.....................)') + '</div></div>';
 }
 
-// Gambar kop surat resmi (dari file assets/kop-surat-dafi.png) dipasang
-// sebagai background penuh halaman A4. Konten dokumen (judul, tabel,
-// tanda tangan) dibungkus .print-content dengan padding atas/bawah
-// yang disesuaikan supaya tidak menimpa header & elemen di kop surat.
-function printBgImage() {
-  return '<img class="print-bg" src="assets/kop-surat-dafi.png" alt="Kop Surat">';
+// Gambar kop surat resmi berbeda per institusi, dipasang sebagai
+// background penuh halaman A4. Konten dokumen (judul, tabel, tanda
+// tangan) dibungkus .print-content dengan padding atas/bawah yang
+// disesuaikan supaya tidak menimpa header & elemen di kop surat.
+const KOP_SURAT_FILE = {
+  'SMP': 'assets/kop-surat-smp.png',
+  'MA': 'assets/kop-surat-ma.png',
+  'Pesantren': 'assets/kop-surat-pesantren.png'
+};
+function printBgImage(institusi) {
+  const file = KOP_SURAT_FILE[institusi] || KOP_SURAT_FILE['SMP'];
+  return '<img class="print-bg" src="' + file + '" alt="Kop Surat">';
 }
+
+// Jabatan pimpinan berbeda per institusi (Kepala SMP / Kepala MA / Ketua Yayasan).
+const PIMPINAN_JABATAN = { 'SMP': 'Kepala SMP', 'MA': 'Kepala MA', 'Pesantren': 'Ketua Yayasan' };
+function pimpinanNama(institusi) { return STATE.pengaturan[institusi + '.pimpinan_nama'] || ''; }
+function penanggungJawabNama(institusi) { return STATE.pengaturan[institusi + '.penanggungjawab_nama'] || ''; }
 
 // ---------------- PRINT PREVIEW (KIB/KIR tanpa DriveApp) ----------------
 function infoRow(label, value) {
@@ -598,7 +624,7 @@ async function printKIB(nomorInventaris) {
         }).join('') + '</tbody></table>'
       : '<div class="print-empty-note">Belum ada riwayat perawatan untuk barang ini.</div>';
 
-    const html = '<div class="print-page portrait">' + printBgImage() +
+    const html = '<div class="print-page portrait">' + printBgImage(b.institusi) +
       '<div class="print-content">' +
       '<div class="print-title">KARTU INVENTARIS BARANG (KIB)</div>' +
       '<table class="print-info-table">' + rows.map(function (r, i) {
@@ -608,8 +634,8 @@ async function printKIB(nomorInventaris) {
       riwayatTableHtml +
       '<div class="print-date">Dicetak: ' + new Date().toLocaleDateString('id-ID') + '</div>' +
       '<div class="print-signature">' +
-        sigBlock('Mengetahui,<br>Kepala Sekolah', STATE.pengaturan.kepala_sekolah_nama) +
-        sigBlock('Penanggung Jawab', STATE.pengaturan.waka_sarpras_nama) +
+        sigBlock('Mengetahui,<br>' + (PIMPINAN_JABATAN[b.institusi] || 'Pimpinan'), pimpinanNama(b.institusi)) +
+        sigBlock('Penanggung Jawab', penanggungJawabNama(b.institusi)) +
       '</div></div></div>';
     showPrintPreview(html, 'portrait');
   } catch (err) { toast(err.message, true); }
@@ -865,11 +891,13 @@ async function loadPenghapusan() {
 function detailPenghapusan(id) {
   const p = PENGHAPUSAN_CACHE.find(function (x) { return x.id_hapus === id; });
   if (!p) return;
-  const isApprover = STATE.user.role === 'admin' || STATE.user.role === 'kepala_sekolah';
+  const isApprover = STATE.user.role === 'admin' ||
+    (STATE.user.role === 'kepala_sekolah' && STATE.user.institusi === p.institusi);
   const rows = [
     ['ID Penghapusan', p.id_hapus],
     ['Nomor Inventaris', p.nomor_inventaris],
     ['Jenis Barang', p.jenis_barang + (p.spesifikasi ? ' — ' + p.spesifikasi : '')],
+    ['Institusi', p.institusi || '-'],
     ['Tanggal Usulan', fmtDate(p.tanggal_usulan)],
     ['Diusulkan Oleh', p.diusulkan_oleh],
     ['Kategori', p.kategori],
@@ -938,31 +966,36 @@ function putuskanHapus(id, status) {
 
 // ---------------- RUANGAN ----------------
 async function loadRuangan() {
-  showTableLoading('#table-ruangan tbody', 6);
+  showTableLoading('#table-ruangan tbody', 7);
   const res = await api('listRuangan', {});
   STATE.ruanganList = res.data;
   document.querySelector('#table-ruangan tbody').innerHTML = res.data.map(function (r) {
-    return '<tr><td class="mono">' + r.kode_ruangan + '</td><td>' + (r.area || '-') + '</td>' +
+    return '<tr><td class="mono">' + r.kode_ruangan + '</td><td>' + badge(r.institusi) + '</td><td>' + (r.area || '-') + '</td>' +
       '<td>' + (r.gedung || '-') + '</td><td>' + r.nama_ruangan + '</td><td>' + (r.penanggung_jawab || '-') + '</td>' +
-      '<td class="row-actions"><button onclick="printKIR(\'' + r.kode_ruangan + '\')">Cetak KIR</button></td></tr>';
-  }).join('') || '<tr><td colspan="6" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+      '<td class="row-actions"><button onclick="editRuangan(\'' + r.kode_ruangan + '\')">Ubah</button> <button onclick="printKIR(\'' + r.kode_ruangan + '\')">Cetak KIR</button></td></tr>';
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
-document.getElementById('btn-new-ruangan').addEventListener('click', function () {
-  openModal('Ruangan Baru', '<form id="form-ruangan">' +
-    '<label>Kode Ruangan<input required id="ru-kode" placeholder="SR.AR.7A"></label>' +
-    '<label>Area<input id="ru-area" placeholder="Sarirogo"></label>' +
-    '<label>Gedung<input id="ru-gedung" placeholder="Arafah"></label>' +
-    '<label>Nama Ruangan<input required id="ru-nama"></label>' +
-    '<label>Penanggung Jawab<input id="ru-pj"></label>' +
+function ruanganForm(data) {
+  data = data || {};
+  return '<form id="form-ruangan">' +
+    '<label>Kode Ruangan<input required id="ru-kode" placeholder="SR.AR.7A" value="' + (data.kode_ruangan || '') + '" ' + (data.kode_ruangan ? 'readonly style="background:#f4f4f4;"' : '') + '></label>' +
+    '<label>Institusi<select required id="ru-institusi">' + institusiOptions(data.institusi) + '</select></label>' +
+    '<label>Area<input id="ru-area" placeholder="Sarirogo" value="' + (data.area || '') + '"></label>' +
+    '<label>Gedung<input id="ru-gedung" placeholder="Arafah" value="' + (data.gedung || '') + '"></label>' +
+    '<label>Nama Ruangan<input required id="ru-nama" value="' + (data.nama_ruangan || '') + '"></label>' +
+    '<label>Penanggung Jawab<input id="ru-pj" value="' + (data.penanggung_jawab || '') + '"></label>' +
     '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
-    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Simpan</button></div></form>');
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Simpan</button></div></form>';
+}
 
+function bindRuanganFormSubmit() {
   document.getElementById('form-ruangan').addEventListener('submit', async function (e) {
     e.preventDefault();
     try {
       await api('saveRuangan', {
         kode_ruangan: document.getElementById('ru-kode').value,
+        institusi: document.getElementById('ru-institusi').value,
         area: document.getElementById('ru-area').value,
         gedung: document.getElementById('ru-gedung').value,
         nama_ruangan: document.getElementById('ru-nama').value,
@@ -971,7 +1004,18 @@ document.getElementById('btn-new-ruangan').addEventListener('click', function ()
       closeModal(); toast('Ruangan berhasil disimpan.'); loadRuangan(); loadRuanganDropdownData();
     } catch (err) { toast(err.message, true); }
   });
+}
+
+document.getElementById('btn-new-ruangan').addEventListener('click', function () {
+  openModal('Ruangan Baru', ruanganForm());
+  bindRuanganFormSubmit();
 });
+
+function editRuangan(kode) {
+  const data = STATE.ruanganList.find(function (r) { return r.kode_ruangan === kode; });
+  openModal('Ubah Ruangan — ' + kode, ruanganForm(data));
+  bindRuanganFormSubmit();
+}
 
 async function printKIR(kode) {
   try {
@@ -1038,7 +1082,8 @@ async function printKIR(kode) {
         '<td>' + formatKondisi(g.kondisi) + '</td></tr>';
     }).join('') || '<tr><td colspan="5" style="text-align:center;">Belum ada barang di ruangan ini.</td></tr>';
 
-    const html = '<div class="print-page portrait">' + printBgImage() +
+    const institusiRuangan = ruangan ? ruangan.institusi : '';
+    const html = '<div class="print-page portrait">' + printBgImage(institusiRuangan) +
       '<div class="print-content">' +
       '<div class="print-title">KARTU INVENTARIS RUANGAN (KIR)</div>' +
       '<table class="print-info-table">' +
@@ -1051,8 +1096,8 @@ async function printKIR(kode) {
       '</tr></thead><tbody>' + bodyRows + '</tbody></table>' +
       '<div class="print-date">Dicetak: ' + new Date().toLocaleDateString('id-ID') + '</div>' +
       '<div class="print-signature">' +
-        sigBlock('Mengetahui,<br>Kepala Sekolah', STATE.pengaturan.kepala_sekolah_nama) +
-        sigBlock('Penanggung Jawab', STATE.pengaturan.waka_sarpras_nama) +
+        sigBlock('Mengetahui,<br>' + (PIMPINAN_JABATAN[institusiRuangan] || 'Pimpinan'), pimpinanNama(institusiRuangan)) +
+        sigBlock('Penanggung Jawab', penanggungJawabNama(institusiRuangan)) +
       '</div></div></div>';
     showPrintPreview(html, 'portrait');
   } catch (err) { toast(err.message, true); }
@@ -1105,34 +1150,48 @@ async function hapusReferensi(kodeKlasifikasi) {
 }
 
 // ---------------- USERS (admin) ----------------
+let USERS_CACHE = [];
 async function loadUsers() {
-  showTableLoading('#table-users tbody', 6);
+  showTableLoading('#table-users tbody', 7);
   const res = await api('listUsers', {});
+  USERS_CACHE = res.data;
   document.querySelector('#table-users tbody').innerHTML = res.data.map(function (u) {
     return '<tr><td class="mono">' + u.username + '</td><td>' + u.nama + '</td>' +
-      '<td>' + u.role + '</td><td>' + (u.kode_ruangan ? roomName(u.kode_ruangan) : '-') + '</td>' +
+      '<td>' + u.role + '</td><td>' + (u.institusi ? badge(u.institusi) : '-') + '</td>' +
+      '<td>' + (u.kode_ruangan ? roomName(u.kode_ruangan) : '-') + '</td>' +
       '<td>' + badge(u.status) + '</td>' +
       '<td class="row-actions"><button onclick="editUser(\'' + u.username + '\')">Ubah</button></td></tr>';
-  }).join('') || '<tr><td colspan="6" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
-function userForm(username, isEdit) {
+function roleOptions(selected) {
+  const roles = [['admin', 'Admin'], ['petugas', 'Petugas Ruangan'], ['kepala_sekolah', 'Kepala Unit']];
+  return roles.map(function (r) {
+    return '<option value="' + r[0] + '"' + (r[0] === selected ? ' selected' : '') + '>' + r[1] + '</option>';
+  }).join('');
+}
+
+function userForm(data) {
+  data = data || {};
+  const isEdit = !!data.username;
   return '<form id="form-user">' +
-    '<label>Username<input required id="u-username" ' + (isEdit ? 'readonly value="' + username + '"' : '') + '></label>' +
+    '<label>Username<input required id="u-username" value="' + (data.username || '') + '" ' + (isEdit ? 'readonly style="background:#f4f4f4;"' : '') + '></label>' +
     (isEdit ? '' : '<label>Password<input required type="password" id="u-password"></label>') +
-    '<label>Nama Lengkap<input required id="u-nama"></label>' +
-    '<label>Role<select id="u-role">' +
-      '<option value="admin">Admin</option><option value="petugas">Petugas Ruangan</option>' +
-      '<option value="kepala_sekolah">Kepala Sekolah</option></select></label>' +
-    '<label>Kode Ruangan (untuk role Petugas)<select id="u-ruangan"><option value="">-</option>' + ruanganOptions() + '</select></label>' +
-    (isEdit ? '<label>Status<select id="u-status"><option value="aktif">Aktif</option><option value="nonaktif">Nonaktif</option></select></label>' : '') +
-    (isEdit ? '<label>Reset Password (kosongkan jika tidak diubah)<input type="password" id="u-newpass"></label>' : '') +
+    '<label>Nama Lengkap<input required id="u-nama" value="' + (data.nama || '') + '"></label>' +
+    '<label>Role<select id="u-role">' + roleOptions(data.role) + '</select></label>' +
+    '<label>Institusi <span style="font-weight:400;color:#888;">(untuk Kepala Unit &amp; Petugas)</span><select id="u-institusi">' + institusiOptions(data.institusi) + '</select></label>' +
+    '<label>Kode Ruangan (untuk role Petugas)<select id="u-ruangan"><option value="">-</option>' + ruanganOptions(data.kode_ruangan) + '</select></label>' +
+    '<label>Status<select id="u-status">' +
+      '<option value="aktif"' + (data.status === 'aktif' || !isEdit ? ' selected' : '') + '>Aktif</option>' +
+      '<option value="nonaktif"' + (data.status === 'nonaktif' ? ' selected' : '') + '>Nonaktif</option></select></label>' +
+    '<label>' + (isEdit ? 'Reset Password (kosongkan jika tidak diubah)' : '') + '</label>' +
+    (isEdit ? '<input type="password" id="u-newpass" style="margin-top:-16px;">' : '') +
     '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
     '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Simpan</button></div></form>';
 }
 
 document.getElementById('btn-new-user').addEventListener('click', function () {
-  openModal('Pengguna Baru', userForm(null, false));
+  openModal('Pengguna Baru', userForm());
   document.getElementById('form-user').addEventListener('submit', async function (e) {
     e.preventDefault();
     try {
@@ -1141,6 +1200,7 @@ document.getElementById('btn-new-user').addEventListener('click', function () {
         password: document.getElementById('u-password').value,
         nama: document.getElementById('u-nama').value,
         role: document.getElementById('u-role').value,
+        institusi: document.getElementById('u-institusi').value,
         kode_ruangan: document.getElementById('u-ruangan').value
       });
       closeModal(); toast('Pengguna berhasil dibuat.'); loadUsers();
@@ -1149,7 +1209,8 @@ document.getElementById('btn-new-user').addEventListener('click', function () {
 });
 
 function editUser(username) {
-  openModal('Ubah Pengguna — ' + username, userForm(username, true));
+  const data = USERS_CACHE.find(function (u) { return u.username === username; });
+  openModal('Ubah Pengguna — ' + username, userForm(data));
   document.getElementById('form-user').addEventListener('submit', async function (e) {
     e.preventDefault();
     try {
@@ -1157,6 +1218,7 @@ function editUser(username) {
         username: username,
         nama: document.getElementById('u-nama').value,
         role: document.getElementById('u-role').value,
+        institusi: document.getElementById('u-institusi').value,
         kode_ruangan: document.getElementById('u-ruangan').value,
         status: document.getElementById('u-status').value,
         newPassword: document.getElementById('u-newpass').value || undefined
@@ -1166,18 +1228,26 @@ function editUser(username) {
   });
 }
 
-// ---------------- PENGATURAN (admin) ----------------
+// ---------------- PENGATURAN (admin, per institusi) ----------------
 function loadPengaturanForm() {
-  document.getElementById('pg-kepsek').value = STATE.pengaturan.kepala_sekolah_nama || '';
-  document.getElementById('pg-waka').value = STATE.pengaturan.waka_sarpras_nama || '';
+  document.getElementById('pg-smp-pimpinan').value = STATE.pengaturan['SMP.pimpinan_nama'] || '';
+  document.getElementById('pg-smp-waka').value = STATE.pengaturan['SMP.penanggungjawab_nama'] || '';
+  document.getElementById('pg-ma-pimpinan').value = STATE.pengaturan['MA.pimpinan_nama'] || '';
+  document.getElementById('pg-ma-waka').value = STATE.pengaturan['MA.penanggungjawab_nama'] || '';
+  document.getElementById('pg-pesantren-pimpinan').value = STATE.pengaturan['Pesantren.pimpinan_nama'] || '';
+  document.getElementById('pg-pesantren-waka').value = STATE.pengaturan['Pesantren.penanggungjawab_nama'] || '';
 }
 
 document.getElementById('form-pengaturan').addEventListener('submit', async function (e) {
   e.preventDefault();
   try {
     const payload = {
-      kepala_sekolah_nama: document.getElementById('pg-kepsek').value,
-      waka_sarpras_nama: document.getElementById('pg-waka').value
+      'SMP.pimpinan_nama': document.getElementById('pg-smp-pimpinan').value,
+      'SMP.penanggungjawab_nama': document.getElementById('pg-smp-waka').value,
+      'MA.pimpinan_nama': document.getElementById('pg-ma-pimpinan').value,
+      'MA.penanggungjawab_nama': document.getElementById('pg-ma-waka').value,
+      'Pesantren.pimpinan_nama': document.getElementById('pg-pesantren-pimpinan').value,
+      'Pesantren.penanggungjawab_nama': document.getElementById('pg-pesantren-waka').value
     };
     await api('savePengaturan', payload);
     STATE.pengaturan = Object.assign({}, STATE.pengaturan, payload);
