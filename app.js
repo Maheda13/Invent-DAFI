@@ -2,7 +2,7 @@
 // KONFIGURASI - ganti dengan URL Web App Apps Script Anda
 // ============================================================
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbwrD1uMgycikJfmVaErf7jJ1z94zZMCcAe9zCqfuA7Ozs9u2r88nOpT0Ju4SNBJ_TQ/exec'
+  API_URL: 'https://script.google.com/macros/s/AKfycbzdaEFi6hHKj-z1gsbe4PG143sshzFSomHb3f-aKhUfCU9WaubsbeqyU-_hprKkVq0/exec'
 };
 
 let STATE = {
@@ -1165,7 +1165,12 @@ async function loadUsers() {
 }
 
 function roleOptions(selected) {
-  const roles = [['admin', 'Admin'], ['petugas', 'Petugas Ruangan'], ['kepala_sekolah', 'Kepala Unit']];
+  const roles = [
+    ['admin', 'Admin'],
+    ['petugas', 'Petugas Ruangan'],
+    ['penanggung_jawab', 'Penanggung Jawab Bidang'],
+    ['kepala_sekolah', 'Kepala Unit']
+  ];
   return roles.map(function (r) {
     return '<option value="' + r[0] + '"' + (r[0] === selected ? ' selected' : '') + '>' + r[1] + '</option>';
   }).join('');
@@ -1179,8 +1184,8 @@ function userForm(data) {
     (isEdit ? '' : '<label>Password<input required type="password" id="u-password"></label>') +
     '<label>Nama Lengkap<input required id="u-nama" value="' + (data.nama || '') + '"></label>' +
     '<label>Role<select id="u-role">' + roleOptions(data.role) + '</select></label>' +
-    '<label>Institusi <span style="font-weight:400;color:#888;">(untuk Kepala Unit &amp; Petugas)</span><select id="u-institusi">' + institusiOptions(data.institusi) + '</select></label>' +
-    '<label>Kode Ruangan (untuk role Petugas)<select id="u-ruangan"><option value="">-</option>' + ruanganOptions(data.kode_ruangan) + '</select></label>' +
+    '<label>Institusi <span style="font-weight:400;color:#888;">(untuk Kepala Unit &amp; Penanggung Jawab Bidang — akses semua ruangan di institusi ini)</span><select id="u-institusi">' + institusiOptions(data.institusi) + '</select></label>' +
+    '<label>Kode Ruangan <span style="font-weight:400;color:#888;">(khusus role Petugas — akses satu ruangan saja)</span><select id="u-ruangan"><option value="">-</option>' + ruanganOptions(data.kode_ruangan) + '</select></label>' +
     '<label>Status<select id="u-status">' +
       '<option value="aktif"' + (data.status === 'aktif' || !isEdit ? ' selected' : '') + '>Aktif</option>' +
       '<option value="nonaktif"' + (data.status === 'nonaktif' ? ' selected' : '') + '>Nonaktif</option></select></label>' +
