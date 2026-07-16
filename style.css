@@ -223,6 +223,7 @@ body {
   font-family: var(--font-body); font-size: 13px; background: #fff;
 }
 .filter-row input { flex: 1; min-width: 200px; }
+.filter-row input[type="checkbox"] { flex: none; min-width: 0; width: auto; }
 .filter-row input:focus, .filter-row select:focus { outline: none; border-color: var(--red); }
 
 .table-wrap { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; }
