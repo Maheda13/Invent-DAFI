@@ -2,7 +2,7 @@
 // KONFIGURASI - ganti dengan URL Web App Apps Script Anda
 // ============================================================
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbzdaEFi6hHKj-z1gsbe4PG143sshzFSomHb3f-aKhUfCU9WaubsbeqyU-_hprKkVq0/exec'
+  API_URL: 'https://script.google.com/macros/s/AKfycbyz2cckNpVY6VhBgrk_HJ5EKSoxv-yN7mMB3lecb_hf_rmHd-f0TIJPvCVdbBTTH8c/exec'
 };
 
 let STATE = {
@@ -122,6 +122,9 @@ function enterApp() {
   if (STATE.user.role !== 'admin') {
     document.querySelectorAll('.admin-only').forEach(function (el) { el.classList.add('hidden'); });
   }
+  if (STATE.user.role !== 'admin' && STATE.user.role !== 'penanggung_jawab') {
+    document.querySelectorAll('.pjb-only').forEach(function (el) { el.classList.add('hidden'); });
+  }
   loadBootstrapData();
   switchView('dashboard');
 }
@@ -158,6 +161,7 @@ function switchView(view) {
   if (view === 'kerusakan') loadKerusakan();
   if (view === 'perawatan') loadPerawatan();
   if (view === 'penghapusan') loadPenghapusan();
+  if (view === 'stok') loadStok();
   if (view === 'ruangan') loadRuangan();
   if (view === 'referensi') loadReferensi();
   if (view === 'users') loadUsers();
@@ -255,6 +259,7 @@ async function loadDashboard() {
   // Notice cards (aktif, bisa diklik ke tab terkait)
   const kerusakanIssue = s.kerusakan_belum_selesai > 0;
   const penghapusanIssue = s.penghapusan_menunggu > 0;
+  const stokIssue = s.stok_menipis > 0;
   document.getElementById('notice-grid').innerHTML =
     '<div class="notice-card ' + (kerusakanIssue ? 'has-issue' : 'all-clear') + '" onclick="switchView(\'kerusakan\')">' +
       '<div><div class="notice-text">Kerusakan Belum Selesai</div>' +
@@ -265,6 +270,11 @@ async function loadDashboard() {
       '<div><div class="notice-text">Penghapusan Menunggu Keputusan</div>' +
       '<div class="notice-sub">' + (penghapusanIssue ? 'Menunggu persetujuan admin/kepsek' : 'Tidak ada usulan tertunda') + '</div></div>' +
       '<div class="notice-count">' + s.penghapusan_menunggu + '</div>' +
+    '</div>' +
+    '<div class="notice-card ' + (stokIssue ? 'has-issue' : 'all-clear') + '" onclick="switchView(\'stok\')">' +
+      '<div><div class="notice-text">Stok Menipis</div>' +
+      '<div class="notice-sub">' + (stokIssue ? 'Perlu segera direstok' : 'Semua stok masih aman') + '</div></div>' +
+      '<div class="notice-count">' + s.stok_menipis + '</div>' +
     '</div>';
 }
 
@@ -1259,3 +1269,116 @@ document.getElementById('form-pengaturan').addEventListener('submit', async func
     toast('Pengaturan berhasil disimpan.');
   } catch (err) { toast(err.message, true); }
 });
+
+// ---------------- STOK BARANG HABIS PAKAI ----------------
+let STOK_CACHE = [];
+
+async function loadStok() {
+  showTableLoading('#table-stok tbody', 5);
+  const payload = {
+    search: document.getElementById('filter-stok-search').value,
+    hanya_menipis: document.getElementById('filter-stok-menipis').checked
+  };
+  const res = await api('listStokItem', payload);
+  STOK_CACHE = res.data;
+
+  const canMasuk = STATE.user.role === 'admin' || STATE.user.role === 'penanggung_jawab';
+
+  document.querySelector('#table-stok tbody').innerHTML = res.data.map(function (it) {
+    const menipis = Number(it.stok_saat_ini) <= Number(it.stok_minimum);
+    const stokDisplay = '<span class="' + (menipis ? 'badge badge-rusak-berat' : 'badge badge-baik') + '">' +
+      it.stok_saat_ini + ' ' + it.satuan + '</span>';
+    return '<tr><td>' + it.nama_barang + '</td><td>' + (it.kategori || '-') + '</td>' +
+      '<td>' + stokDisplay + '</td><td>' + it.stok_minimum + ' ' + it.satuan + '</td>' +
+      '<td class="row-actions">' +
+        (canMasuk ? '<button onclick="catatMutasi(\'' + it.kode_item + '\',\'masuk\')">+ Masuk</button>' : '') +
+        '<button onclick="catatMutasi(\'' + it.kode_item + '\',\'keluar\')">- Keluar</button>' +
+        '<button onclick="riwayatStok(\'' + it.kode_item + '\')">Riwayat</button>' +
+        (canMasuk ? '<button onclick="editStokItem(\'' + it.kode_item + '\')">Ubah</button>' : '') +
+      '</td></tr>';
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+}
+
+['filter-stok-search'].forEach(function (id) {
+  document.getElementById(id).addEventListener('input', function () { loadStok(); });
+});
+document.getElementById('filter-stok-menipis').addEventListener('change', function () { loadStok(); });
+
+function stokItemForm(data) {
+  data = data || {};
+  const defaultInstitusi = data.institusi || (STATE.user.role !== 'admin' ? STATE.user.institusi : '');
+  return '<form id="form-stok-item">' +
+    '<label>Institusi<select id="si-institusi" ' + (STATE.user.role !== 'admin' ? 'disabled' : '') + '>' + institusiOptions(defaultInstitusi) + '</select></label>' +
+    '<label>Nama Barang<input required id="si-nama" value="' + (data.nama_barang || '') + '" placeholder="Contoh: Kertas HVS A4"></label>' +
+    '<label>Kategori<input id="si-kategori" value="' + (data.kategori || '') + '" placeholder="ATK, Listrik, dll."></label>' +
+    '<label>Satuan<input required id="si-satuan" value="' + (data.satuan || '') + '" placeholder="Rim, Botol, Buah, dll."></label>' +
+    '<label>Stok Minimum <span style="font-weight:400;color:#888;">(ambang batas peringatan menipis)</span><input required type="number" id="si-minimum" value="' + (data.stok_minimum || 0) + '"></label>' +
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Simpan</button></div></form>';
+}
+
+function bindStokItemFormSubmit(kodeItem) {
+  document.getElementById('form-stok-item').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    try {
+      await api('saveStokItem', {
+        kode_item: kodeItem || undefined,
+        institusi: document.getElementById('si-institusi').value,
+        nama_barang: document.getElementById('si-nama').value,
+        kategori: document.getElementById('si-kategori').value,
+        satuan: document.getElementById('si-satuan').value,
+        stok_minimum: document.getElementById('si-minimum').value
+      });
+      closeModal(); toast('Item stok berhasil disimpan.'); loadStok();
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
+document.getElementById('btn-new-stok-item').addEventListener('click', function () {
+  openModal('Item Stok Baru', stokItemForm());
+  bindStokItemFormSubmit(null);
+});
+
+function editStokItem(kodeItem) {
+  const data = STOK_CACHE.find(function (it) { return it.kode_item === kodeItem; });
+  openModal('Ubah Item Stok — ' + (data ? data.nama_barang : ''), stokItemForm(data));
+  bindStokItemFormSubmit(kodeItem);
+}
+
+function catatMutasi(kodeItem, jenis) {
+  const data = STOK_CACHE.find(function (it) { return it.kode_item === kodeItem; });
+  const label = jenis === 'masuk' ? 'Barang Masuk' : 'Barang Keluar';
+  openModal('Catat ' + label + ' — ' + (data ? data.nama_barang : ''),
+    '<form id="form-mutasi">' +
+    '<p style="font-size:13px;color:#444;margin-top:-4px;">Stok saat ini: <strong>' + (data ? data.stok_saat_ini + ' ' + data.satuan : '-') + '</strong></p>' +
+    '<label>Jumlah<input required type="number" min="1" id="mt-jumlah"></label>' +
+    '<label>Keterangan<textarea id="mt-keterangan" placeholder="' + (jenis === 'masuk' ? 'Contoh: Pembelian dari toko ABC' : 'Contoh: Dipakai untuk ujian semester Kelas 9') + '"></textarea></label>' +
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Catat ' + label + '</button></div></form>');
+
+  document.getElementById('form-mutasi').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    try {
+      await api('catatMutasiStok', {
+        kode_item: kodeItem,
+        jenis: jenis,
+        jumlah: document.getElementById('mt-jumlah').value,
+        keterangan: document.getElementById('mt-keterangan').value
+      });
+      closeModal(); toast(label + ' berhasil dicatat.'); loadStok();
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
+async function riwayatStok(kodeItem) {
+  const data = STOK_CACHE.find(function (it) { return it.kode_item === kodeItem; });
+  try {
+    const res = await api('listMutasiStok', { kode_item: kodeItem });
+    const rowsHtml = res.data.length ? res.data.map(function (m) {
+      const tanda = m.jenis === 'masuk' ? '+' : '-';
+      return '<div class="detail-row"><span class="dl-label">' + fmtDate(m.tanggal) + ' — ' + m.dicatat_oleh + '</span>' +
+        '<span class="dl-value">' + tanda + m.jumlah + (m.keterangan ? ' (' + m.keterangan + ')' : '') + '</span></div>';
+    }).join('') : '<div class="print-empty-note" style="margin:0;">Belum ada riwayat mutasi.</div>';
+    openModal('Riwayat Stok — ' + (data ? data.nama_barang : ''), '<div class="detail-list">' + rowsHtml + '</div>');
+  } catch (err) { toast(err.message, true); }
+}
