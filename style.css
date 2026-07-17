@@ -246,9 +246,10 @@ td.mono, .kode-cell { font-family: var(--font-mono); font-size: 12.5px; }
 
 .row-actions button {
   border: none; background: none; cursor: pointer; font-size: 12.5px;
-  color: var(--red); font-weight: 700; padding: 3px 6px;
+  color: var(--red); font-weight: 700; padding: 4px 7px; border-radius: 4px;
 }
-.row-actions button:hover { text-decoration: underline; }
+.row-actions button:hover { background: rgba(229,35,43,0.1); }
+.row-actions button span { white-space: nowrap; }
 
 .pagination { display: flex; gap: 6px; margin-top: 12px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
 .pagination button {
@@ -308,6 +309,12 @@ td.mono, .kode-cell { font-family: var(--font-mono); font-size: 12.5px; }
   box-shadow: 0 6px 18px rgba(0,0,0,0.25);
 }
 .toast.error { background: var(--red-dark); }
+
+/* ---------- IKON ---------- */
+.icon { flex-shrink: 0; display: inline-block; vertical-align: middle; }
+.row-actions button, .tab-btn, .btn-secondary, .btn-primary, .btn-logout {
+  display: inline-flex; align-items: center; gap: 5px;
+}
 
 /* ---------- LOADING BAR (poin 2) ---------- */
 .loading-bar {
