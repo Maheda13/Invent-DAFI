@@ -16,7 +16,7 @@
   <div class="login-card">
     <img src="assets/logo-dafi.png" alt="Logo DAFI" class="login-logo">
     <div class="login-mark">SI<span>DAFI</span></div>
-    <p class="subtitle">SISTEM INVENTARISASI DIGITAL DAFI ver 1.2</p>
+    <p class="subtitle">SISTEM INVENTARISASI DIGITAL DAFI Ver 2.1</p>
     <form id="form-login">
       <label>Username
         <input type="text" id="login-username" required autocomplete="username">
@@ -36,23 +36,23 @@
     <div class="brand">
       <div class="brand-logo-chip"><img src="assets/logo-dafi.png" alt="Logo DAFI"></div>
       <div class="brand-mark">SI<span>DAFI</span></div>
-      <div class="brand-tagline">SISTEM INVENTARISASI<br>DIGITAL DAFI Ver. 1.2</div>
+      <div class="brand-tagline">SISTEM INVENTARISASI<br>DIGITAL DAFI Ver 2.1</div>
     </div>
     <div class="brand-user" id="current-user-label"></div>
     <nav class="tabs">
-      <button class="tab-btn active" data-view="dashboard">Ringkasan</button>
-      <button class="tab-btn" data-view="barang">Data Barang</button>
-      <button class="tab-btn" data-view="peminjaman">Peminjaman</button>
-      <button class="tab-btn" data-view="kerusakan">Kerusakan</button>
-      <button class="tab-btn" data-view="perawatan">Perawatan</button>
-      <button class="tab-btn" data-view="penghapusan">Penghapusan</button>
-      <button class="tab-btn" data-view="stok">Stok Habis Pakai</button>
-      <button class="tab-btn" data-view="ruangan">Ruangan</button>
-      <button class="tab-btn admin-only" data-view="referensi">Referensi Kode</button>
-      <button class="tab-btn admin-only" data-view="users">Pengguna</button>
-      <button class="tab-btn admin-only" data-view="pengaturan">Pengaturan</button>
+      <button class="tab-btn active" data-view="dashboard" data-icon="home">Ringkasan</button>
+      <button class="tab-btn" data-view="barang" data-icon="box">Data Barang</button>
+      <button class="tab-btn" data-view="peminjaman" data-icon="swap">Peminjaman</button>
+      <button class="tab-btn" data-view="kerusakan" data-icon="alertTriangle">Kerusakan</button>
+      <button class="tab-btn" data-view="perawatan" data-icon="wrench">Perawatan</button>
+      <button class="tab-btn" data-view="penghapusan" data-icon="trash">Penghapusan</button>
+      <button class="tab-btn" data-view="stok" data-icon="archive">Stok Habis Pakai</button>
+      <button class="tab-btn" data-view="ruangan" data-icon="building">Ruangan</button>
+      <button class="tab-btn admin-only" data-view="referensi" data-icon="tag">Referensi Kode</button>
+      <button class="tab-btn admin-only" data-view="users" data-icon="users">Pengguna</button>
+      <button class="tab-btn admin-only" data-view="pengaturan" data-icon="sliders">Pengaturan</button>
     </nav>
-    <button id="btn-logout" class="btn-logout">Keluar</button>
+    <button id="btn-logout" class="btn-logout" data-icon="logout">Keluar</button>
   </aside>
 
   <main class="content">
@@ -76,7 +76,7 @@
     <section id="section-barang" class="view-section hidden">
       <div class="section-header">
         <h2>Data Barang</h2>
-        <button class="btn-primary" id="btn-new-barang">+ Barang Baru</button>
+        <button class="btn-primary" id="btn-new-barang" data-icon="plus">Barang Baru</button>
       </div>
       <div class="filter-row">
         <input type="text" id="filter-search" placeholder="Cari nomor inventaris / jenis / spesifikasi...">
@@ -113,7 +113,7 @@
     <section id="section-peminjaman" class="view-section hidden">
       <div class="section-header">
         <h2>Peminjaman Barang</h2>
-        <button class="btn-primary" id="btn-new-peminjaman">+ Ajukan Peminjaman</button>
+        <button class="btn-primary" id="btn-new-peminjaman" data-icon="plus">Ajukan Peminjaman</button>
       </div>
       <div class="table-wrap">
         <table id="table-peminjaman">
@@ -129,7 +129,7 @@
     <section id="section-kerusakan" class="view-section hidden">
       <div class="section-header">
         <h2>Laporan Kerusakan</h2>
-        <button class="btn-primary" id="btn-new-kerusakan">+ Lapor Kerusakan</button>
+        <button class="btn-primary" id="btn-new-kerusakan" data-icon="plus">Lapor Kerusakan</button>
       </div>
       <div class="table-wrap">
         <table id="table-kerusakan">
@@ -145,7 +145,7 @@
     <section id="section-perawatan" class="view-section hidden">
       <div class="section-header">
         <h2>Riwayat Perawatan</h2>
-        <button class="btn-primary" id="btn-new-perawatan">+ Catat Perawatan</button>
+        <button class="btn-primary" id="btn-new-perawatan" data-icon="plus">Catat Perawatan</button>
       </div>
       <div class="table-wrap">
         <table id="table-perawatan">
@@ -161,7 +161,7 @@
     <section id="section-penghapusan" class="view-section hidden">
       <div class="section-header">
         <h2>Usulan Penghapusan</h2>
-        <button class="btn-primary" id="btn-new-penghapusan">+ Ajukan Penghapusan</button>
+        <button class="btn-primary" id="btn-new-penghapusan" data-icon="plus">Ajukan Penghapusan</button>
       </div>
       <div class="table-wrap">
         <table id="table-penghapusan">
@@ -177,7 +177,7 @@
     <section id="section-stok" class="view-section hidden">
       <div class="section-header">
         <h2>Stok Barang Habis Pakai</h2>
-        <button class="btn-primary pjb-only" id="btn-new-stok-item">+ Item Baru</button>
+        <button class="btn-primary pjb-only" id="btn-new-stok-item" data-icon="plus">Item Baru</button>
       </div>
       <div class="filter-row">
         <input type="text" id="filter-stok-search" placeholder="Cari nama barang...">
@@ -199,7 +199,7 @@
     <section id="section-ruangan" class="view-section hidden">
       <div class="section-header">
         <h2>Data Ruangan</h2>
-        <button class="btn-primary admin-only" id="btn-new-ruangan">+ Ruangan Baru</button>
+        <button class="btn-primary admin-only" id="btn-new-ruangan" data-icon="plus">Ruangan Baru</button>
       </div>
       <div class="filter-row">
         <input type="text" id="filter-ruangan-search" placeholder="Cari kode / nama ruangan / area / gedung...">
@@ -220,7 +220,7 @@
     <section id="section-referensi" class="view-section hidden">
       <div class="section-header">
         <h2>Referensi Kode Klasifikasi</h2>
-        <button class="btn-primary" id="btn-new-referensi">+ Kode Baru</button>
+        <button class="btn-primary" id="btn-new-referensi" data-icon="plus">Kode Baru</button>
       </div>
       <div class="filter-row">
         <input type="text" id="filter-referensi-search" placeholder="Cari jenis barang / kode klasifikasi...">
@@ -240,7 +240,7 @@
     <section id="section-users" class="view-section hidden">
       <div class="section-header">
         <h2>Manajemen Pengguna</h2>
-        <button class="btn-primary" id="btn-new-user">+ Pengguna Baru</button>
+        <button class="btn-primary" id="btn-new-user" data-icon="plus">Pengguna Baru</button>
       </div>
       <div class="table-wrap">
         <table id="table-users">
@@ -315,7 +315,7 @@
     <span class="print-preview-title">Pratinjau Cetak</span>
     <div>
       <button id="btn-print-now" class="btn-primary">🖨️ Cetak / Simpan sebagai PDF</button>
-      <button id="btn-close-print" class="btn-secondary">Tutup</button>
+      <button id="btn-close-print" class="btn-secondary" data-icon="xCircle">Tutup</button>
     </div>
   </div>
   <div class="print-preview-scroll">
