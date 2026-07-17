@@ -979,12 +979,38 @@ async function loadRuangan() {
   showTableLoading('#table-ruangan tbody', 7);
   const res = await api('listRuangan', {});
   STATE.ruanganList = res.data;
-  document.querySelector('#table-ruangan tbody').innerHTML = res.data.map(function (r) {
+
+  const filterInst = document.getElementById('filter-ruangan-institusi');
+  if (!filterInst.dataset.filled) {
+    filterInst.innerHTML = '<option value="">Semua Institusi</option>' +
+      INSTITUSI_LIST.map(function (i) { return '<option value="' + i + '">' + i + '</option>'; }).join('');
+    filterInst.dataset.filled = '1';
+  }
+  renderRuanganTable();
+}
+
+function renderRuanganTable() {
+  const search = document.getElementById('filter-ruangan-search').value.toLowerCase();
+  const institusi = document.getElementById('filter-ruangan-institusi').value;
+  const filtered = STATE.ruanganList.filter(function (r) {
+    if (institusi && r.institusi !== institusi) return false;
+    if (search) {
+      const gabungan = [r.kode_ruangan, r.nama_ruangan, r.area, r.gedung].join(' ').toLowerCase();
+      if (gabungan.indexOf(search) === -1) return false;
+    }
+    return true;
+  });
+  document.querySelector('#table-ruangan tbody').innerHTML = filtered.map(function (r) {
     return '<tr><td class="mono">' + r.kode_ruangan + '</td><td>' + badge(r.institusi) + '</td><td>' + (r.area || '-') + '</td>' +
       '<td>' + (r.gedung || '-') + '</td><td>' + r.nama_ruangan + '</td><td>' + (r.penanggung_jawab || '-') + '</td>' +
       '<td class="row-actions"><button onclick="editRuangan(\'' + r.kode_ruangan + '\')">Ubah</button> <button onclick="printKIR(\'' + r.kode_ruangan + '\')">Cetak KIR</button></td></tr>';
-  }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Tidak ada ruangan yang cocok.</td></tr>';
 }
+
+['filter-ruangan-search', 'filter-ruangan-institusi'].forEach(function (id) {
+  document.getElementById(id).addEventListener('input', renderRuanganTable);
+  document.getElementById(id).addEventListener('change', renderRuanganTable);
+});
 
 function ruanganForm(data) {
   data = data || {};
@@ -1118,12 +1144,36 @@ async function loadReferensi() {
   showTableLoading('#table-referensi tbody', 5);
   const res = await api('listReferensiKode', {});
   STATE.referensiList = res.data;
-  document.querySelector('#table-referensi tbody').innerHTML = res.data.map(function (r) {
+
+  const golonganUnik = [...new Set(res.data.map(function (r) { return r.golongan_barang; }))];
+  document.getElementById('filter-referensi-golongan').innerHTML = '<option value="">Semua Golongan</option>' +
+    golonganUnik.map(function (g) { return '<option value="' + g + '">' + g + '</option>'; }).join('');
+
+  renderReferensiTable();
+}
+
+function renderReferensiTable() {
+  const search = document.getElementById('filter-referensi-search').value.toLowerCase();
+  const golongan = document.getElementById('filter-referensi-golongan').value;
+  const filtered = STATE.referensiList.filter(function (r) {
+    if (golongan && r.golongan_barang !== golongan) return false;
+    if (search) {
+      const gabungan = (r.jenis_barang + ' ' + r.kode_klasifikasi).toLowerCase();
+      if (gabungan.indexOf(search) === -1) return false;
+    }
+    return true;
+  });
+  document.querySelector('#table-referensi tbody').innerHTML = filtered.map(function (r) {
     return '<tr><td>' + r.golongan_barang + '</td><td class="mono">' + r.kode_golongan + '</td>' +
       '<td>' + r.jenis_barang + '</td><td class="mono">' + r.kode_klasifikasi + '</td>' +
       '<td class="row-actions"><button onclick="hapusReferensi(\'' + r.kode_klasifikasi + '\')">Hapus</button></td></tr>';
-  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Tidak ada kode yang cocok.</td></tr>';
 }
+
+['filter-referensi-search', 'filter-referensi-golongan'].forEach(function (id) {
+  document.getElementById(id).addEventListener('input', renderReferensiTable);
+  document.getElementById(id).addEventListener('change', renderReferensiTable);
+});
 
 document.getElementById('btn-new-referensi').addEventListener('click', function () {
   const golonganUnik = [...new Set(STATE.referensiList.map(function (r) { return r.golongan_barang; }))];
