@@ -24,6 +24,47 @@ function institusiOptions(selected) {
 document.getElementById('filter-institusi').innerHTML = '<option value="">Semua Institusi</option>' +
   INSTITUSI_LIST.map(function (inst) { return '<option value="' + inst + '">' + inst + '</option>'; }).join('');
 
+// ============================================================
+// IKON (SVG inline, tanpa dependensi eksternal - supaya tetap
+// ringan & tidak rusak kalau CDN ikon down). Gaya stroke minimal
+// konsisten, dipakai di navigasi & tombol aksi.
+// ============================================================
+const ICONS = {
+  home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',
+  box: '<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
+  swap: '<path d="M7 3L3 7l4 4"/><path d="M3 7h13"/><path d="M17 21l4-4-4-4"/><path d="M21 17H8"/>',
+  alertTriangle: '<path d="M12 3l10 18H2z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17.01"/>',
+  wrench: '<path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.8 2.8-2-2 2.8-2.8z"/>',
+  trash: '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
+  archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/>',
+  building: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 21v-4h6v4"/><line x1="8" y1="7" x2="9" y2="7"/><line x1="15" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="9" y2="11"/><line x1="15" y1="11" x2="16" y2="11"/>',
+  tag: '<path d="M20.6 13.4L11 3.8A2 2 0 009.6 3.2L3 3v6.6a2 2 0 00.6 1.4l9.6 9.6a2 2 0 002.8 0l4.6-4.6a2 2 0 000-2.8z"/><circle cx="7.5" cy="7.5" r="1.2"/>',
+  users: '<circle cx="9" cy="7" r="4"/><path d="M17 11a4 4 0 000-8"/><path d="M1 21v-2a4 4 0 014-4h8a4 4 0 014 4v2"/><path d="M23 21v-2a4 4 0 00-3-3.87"/>',
+  sliders: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+  logout: '<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>',
+  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  printer: '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+  undo: '<polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 01-4 4H4"/>',
+  check: '<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+  xCircle: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  arrowDownCircle: '<circle cx="12" cy="12" r="10"/><polyline points="8 12 12 16 16 12"/><line x1="12" y1="8" x2="12" y2="16"/>',
+  arrowUpCircle: '<circle cx="12" cy="12" r="10"/><polyline points="16 12 12 8 8 12"/><line x1="12" y1="16" x2="12" y2="8"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'
+};
+
+function icon(name, size) {
+  size = size || 15;
+  return '<svg class="icon" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" ' +
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    (ICONS[name] || '') + '</svg>';
+}
+// Tombol dengan ikon + label pendek, dipakai untuk aksi baris tabel/nav.
+function iconLabel(name, label) {
+  return icon(name) + (label ? '<span>' + label + '</span>' : '');
+}
+
 // ---------------- API HELPER ----------------
 // Catatan: Content-Type text/plain sengaja dipakai supaya browser TIDAK
 // mengirim preflight OPTIONS (Apps Script tidak bisa menangani OPTIONS).
@@ -115,10 +156,21 @@ document.getElementById('btn-logout').addEventListener('click', async function (
   document.getElementById('view-login').classList.remove('hidden');
 });
 
+// Menyisipkan ikon ke semua elemen ber-atribut data-icon (dipakai untuk
+// tombol navigasi & logout yang markupnya statis di index.html).
+function initNavIcons() {
+  document.querySelectorAll('[data-icon]').forEach(function (el) {
+    if (el.dataset.iconApplied) return;
+    el.innerHTML = icon(el.dataset.icon) + '<span>' + el.textContent + '</span>';
+    el.dataset.iconApplied = '1';
+  });
+}
+
 function enterApp() {
   document.getElementById('view-login').classList.add('hidden');
   document.getElementById('view-app').classList.remove('hidden');
   document.getElementById('current-user-label').textContent = STATE.user.nama + ' — ' + STATE.user.role;
+  initNavIcons();
   if (STATE.user.role !== 'admin') {
     document.querySelectorAll('.admin-only').forEach(function (el) { el.classList.add('hidden'); });
   }
@@ -186,6 +238,33 @@ function badge(text) {
 }
 function rupiah(n) { return 'Rp ' + Number(n || 0).toLocaleString('id-ID'); }
 function fmtDate(v) { if (!v) return '-'; const d = new Date(v); return isNaN(d) ? v : d.toLocaleDateString('id-ID'); }
+
+// Menyingkat daftar Nomor Inventaris yang berurutan, mis. empat nomor
+// 02.01.03.2023.012 s/d .015 menjadi "02.01.03.2023.012-015". Nomor yang
+// beda tahun/kode klasifikasi atau tidak berurutan dipisah koma. Dipakai
+// di tabel KIR maupun konfirmasi setelah input barang jumlah banyak.
+function formatNomorInventarisRanges(nomorList) {
+  const byPrefix = {}; const order = [];
+  nomorList.forEach(function (n) {
+    const idx = n.lastIndexOf('.');
+    const prefix = n.substring(0, idx);
+    const urut = parseInt(n.substring(idx + 1), 10);
+    if (!byPrefix[prefix]) { byPrefix[prefix] = []; order.push(prefix); }
+    byPrefix[prefix].push(urut);
+  });
+  const parts = [];
+  order.forEach(function (prefix) {
+    const sorted = byPrefix[prefix].slice().sort(function (a, b) { return a - b; });
+    let start = sorted[0], prev = sorted[0];
+    for (let i = 1; i <= sorted.length; i++) {
+      if (i < sorted.length && sorted[i] === prev + 1) { prev = sorted[i]; continue; }
+      const padStart = String(start).padStart(3, '0');
+      parts.push(start === prev ? (prefix + '.' + padStart) : (prefix + '.' + padStart + '-' + String(prev).padStart(3, '0')));
+      if (i < sorted.length) { start = sorted[i]; prev = sorted[i]; }
+    }
+  });
+  return parts.join(', ');
+}
 
 // ---------------- INPUT MASK (poin 4: format terstandar) ----------------
 // Nomor Inventaris: XX.XX.XX.XXXX.XXX — titik otomatis muncul saat mengetik angka.
@@ -352,8 +431,8 @@ async function loadBarang(page) {
       '<td>' + badge(b.kondisi) + '</td>' +
       '<td>' + badge(b.status) + '</td>' +
       '<td class="row-actions">' +
-        '<button onclick="editBarang(\'' + b.nomor_inventaris + '\')">Ubah</button>' +
-        '<button onclick="printKIB(\'' + b.nomor_inventaris + '\')">Cetak KIB</button>' +
+        '<button onclick="editBarang(\'' + b.nomor_inventaris + '\')">' + iconLabel('edit', 'Ubah') + '</button>' +
+        '<button onclick="printKIB(\'' + b.nomor_inventaris + '\')">' + iconLabel('printer', 'Cetak KIB') + '</button>' +
       '</td></tr>';
   }).join('') || '<tr><td colspan="8" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 
@@ -468,6 +547,9 @@ function barangForm(data) {
       (data.golongan_barang ? jenisBarangOptionsForGolongan(data.golongan_barang, data.jenis_barang) : '<option value="">-- pilih golongan dulu --</option>') +
     '</select></label>' +
     '<label>Kode Klasifikasi<input id="f-kode-klasifikasi" value="' + (data.kode_klasifikasi || '') + '" readonly style="background:#f4f4f4;"></label>' +
+    (data.nomor_inventaris ? '' :
+      '<label>Jumlah <span style="font-weight:400;color:#888;">(kalau beli beberapa unit sekaligus dengan spesifikasi sama)</span>' +
+      '<input required type="number" min="1" id="f-jumlah" value="1"></label>') +
     '<label>Spesifikasi / Merk<input id="f-spesifikasi" value="' + (data.spesifikasi || '') + '" placeholder="Contoh: Daikin 1.5 PK"></label>' +
     '<label>Nama Satuan<input id="f-satuan" value="' + (data.nama_satuan || 'Unit') + '" placeholder="Unit, Buah, Set, dst."></label>' +
     '<label>Tahun Perolehan<input required id="f-tahun" type="number" value="' + (data.tahun_perolehan || new Date().getFullYear()) + '"></label>' +
@@ -481,8 +563,8 @@ function barangForm(data) {
     '<label>Ruangan<select id="f-ruangan">' + ruanganOptions(data.kode_ruangan) + '</select></label>' +
     '<label>Keterangan<textarea id="f-ket">' + (data.keterangan || '') + '</textarea></label>' +
     '<div class="modal-footer">' +
-      '<button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
-      '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Simpan</button>' +
+      '<button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+      '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Simpan') + '</button>' +
     '</div></form>';
 }
 
@@ -517,11 +599,12 @@ function bindBarangFormSubmit(nomorInventaris) {
   document.getElementById('form-barang').addEventListener('submit', async function (e) {
     e.preventDefault();
     try {
-      await api('saveBarang', {
+      const res = await api('saveBarang', {
         nomor_inventaris: nomorInventaris || undefined,
         golongan_barang: document.getElementById('f-golongan').value,
         jenis_barang: document.getElementById('f-jenis').value,
         kode_klasifikasi: document.getElementById('f-kode-klasifikasi').value,
+        jumlah: nomorInventaris ? undefined : document.getElementById('f-jumlah').value,
         spesifikasi: document.getElementById('f-spesifikasi').value,
         nama_satuan: document.getElementById('f-satuan').value,
         tahun_perolehan: document.getElementById('f-tahun').value,
@@ -532,7 +615,13 @@ function bindBarangFormSubmit(nomorInventaris) {
         kode_ruangan: document.getElementById('f-ruangan').value,
         keterangan: document.getElementById('f-ket').value
       });
-      closeModal(); toast('Barang berhasil disimpan.'); loadBarang(STATE.barangPage);
+      closeModal();
+      if (res.jumlah_ditambahkan > 1) {
+        toast(res.jumlah_ditambahkan + ' barang berhasil ditambahkan (' + formatNomorInventarisRanges(res.nomor_list) + ')');
+      } else {
+        toast('Barang berhasil disimpan.');
+      }
+      loadBarang(STATE.barangPage);
     } catch (err) { toast(err.message, true); }
   });
 }
@@ -662,7 +751,7 @@ async function loadPeminjaman() {
       '<td class="item-name-cell">' + p.jenis_barang + '<span class="item-sub">' + p.nomor_inventaris + '</span></td>' +
       '<td>' + p.nama_peminjam + '</td><td>' + (p.keperluan || '-') + '</td>' +
       '<td>' + fmtDate(p.tanggal_pinjam) + '</td>' +
-      '<td class="row-actions"><button onclick="detailPeminjaman(\'' + p.id_pinjam + '\')">Detail</button></td></tr>';
+      '<td class="row-actions"><button onclick="detailPeminjaman(\'' + p.id_pinjam + '\')">' + iconLabel('eye', 'Detail') + '</button></td></tr>';
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
@@ -688,7 +777,7 @@ function detailPeminjaman(id) {
   const detailHtml = '<div class="detail-list">' + rows.map(function (r) {
     return '<div class="detail-row"><span class="dl-label">' + r[0] + '</span><span class="dl-value">' + r[1] + '</span></div>';
   }).join('') + '</div>' +
-  (p.status === 'dipinjam' ? '<div class="modal-footer"><button class="btn-primary" onclick="closeModal(); kembalikanPinjam(\'' + p.id_pinjam + '\')">Kembalikan Barang</button></div>' : '');
+  (p.status === 'dipinjam' ? '<div class="modal-footer"><button class="btn-primary" onclick="closeModal(); kembalikanPinjam(\'' + p.id_pinjam + '\')">' + iconLabel('undo', 'Kembalikan Barang') + '</button></div>' : '');
   openModal('Detail Peminjaman', detailHtml);
 }
 
@@ -699,8 +788,8 @@ document.getElementById('btn-new-peminjaman').addEventListener('click', function
     '<label>Keperluan<input id="p-keperluan" placeholder="Contoh: Mengajar PAI Kelas 7A"></label>' +
     '<label>Ruangan Tujuan<select id="p-tujuan">' + ruanganOptions() + '</select></label>' +
     '<label>Rencana Kembali<input type="date" id="p-rencana"></label>' +
-    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
-    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Ajukan</button></div></form>');
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Ajukan') + '</button></div></form>');
   attachNomorInventarisMask(document.getElementById('p-kode'));
 
   document.getElementById('form-pinjam').addEventListener('submit', async function (e) {
@@ -723,8 +812,8 @@ async function kembalikanPinjam(id) {
     '<label>Kondisi Saat Kembali<select id="k-kondisi">' +
     '<option value="baik">Baik</option><option value="rusak ringan">Rusak Ringan</option><option value="rusak berat">Rusak Berat</option>' +
     '</select></label>' +
-    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
-    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Simpan</button></div></form>');
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Simpan') + '</button></div></form>');
 
   document.getElementById('form-kembali').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -747,7 +836,7 @@ async function loadKerusakan() {
       '<td>' + roomName(k.kode_ruangan_barang) + '</td>' +
       '<td>' + fmtDate(k.tanggal_lapor) + '</td>' +
       '<td>' + badge(k.status_penanganan) + '</td>' +
-      '<td class="row-actions"><button onclick="detailKerusakan(\'' + k.id_lapor + '\')">Detail</button></td></tr>';
+      '<td class="row-actions"><button onclick="detailKerusakan(\'' + k.id_lapor + '\')">' + iconLabel('eye', 'Detail') + '</button></td></tr>';
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
@@ -770,7 +859,7 @@ function detailKerusakan(id) {
   const detailHtml = '<div class="detail-list">' + rows.map(function (r) {
     return '<div class="detail-row"><span class="dl-label">' + r[0] + '</span><span class="dl-value">' + r[1] + '</span></div>';
   }).join('') + '</div>' +
-  (k.status_penanganan !== 'selesai' ? '<div class="modal-footer"><button class="btn-primary" onclick="closeModal(); prosesKerusakan(\'' + k.id_lapor + '\')">Proses / Selesaikan</button></div>' : '');
+  (k.status_penanganan !== 'selesai' ? '<div class="modal-footer"><button class="btn-primary" onclick="closeModal(); prosesKerusakan(\'' + k.id_lapor + '\')">' + iconLabel('check', 'Proses / Selesaikan') + '</button></div>' : '');
   openModal('Detail Kerusakan', detailHtml);
 }
 
@@ -779,8 +868,8 @@ document.getElementById('btn-new-kerusakan').addEventListener('click', function 
     '<label>Nomor Inventaris<input required id="r-kode" placeholder="02.03.13.2023.001"></label>' +
     '<label>Tingkat Kerusakan<select id="r-tingkat"><option value="ringan">Ringan</option><option value="berat">Berat</option></select></label>' +
     '<label>Deskripsi<textarea required id="r-deskripsi"></textarea></label>' +
-    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
-    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Laporkan</button></div></form>');
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Laporkan') + '</button></div></form>');
   attachNomorInventarisMask(document.getElementById('r-kode'));
 
   document.getElementById('form-rusak').addEventListener('submit', async function (e) {
@@ -800,8 +889,8 @@ function prosesKerusakan(id) {
   openModal('Tindak Lanjut Kerusakan', '<form id="form-proses">' +
     '<label>Status<select id="pr-status"><option value="diproses">Diproses</option><option value="selesai">Selesai</option></select></label>' +
     '<label>Tindak Lanjut<textarea id="pr-tindak"></textarea></label>' +
-    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
-    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Simpan</button></div></form>');
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Simpan') + '</button></div></form>');
 
   document.getElementById('form-proses').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -827,7 +916,7 @@ async function loadPerawatan() {
       '<td class="item-name-cell">' + p.jenis_barang + '<span class="item-sub">' + p.nomor_inventaris + '</span></td>' +
       '<td>' + roomName(p.kode_ruangan_barang) + '</td>' +
       '<td>' + fmtDate(p.tanggal) + '</td><td>' + p.jenis_perawatan + '</td>' +
-      '<td class="row-actions"><button onclick="detailPerawatan(\'' + p.id_rawat + '\')">Detail</button></td></tr>';
+      '<td class="row-actions"><button onclick="detailPerawatan(\'' + p.id_rawat + '\')">' + iconLabel('eye', 'Detail') + '</button></td></tr>';
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
@@ -860,8 +949,8 @@ document.getElementById('btn-new-perawatan').addEventListener('click', function 
     '<option value="">-- tidak berubah --</option><option value="baik">Baik</option>' +
     '<option value="rusak ringan">Rusak Ringan</option></select></label>' +
     '<label>Keterangan<textarea id="w-ket"></textarea></label>' +
-    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
-    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Simpan</button></div></form>');
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Simpan') + '</button></div></form>');
   attachNomorInventarisMask(document.getElementById('w-kode'));
 
   document.getElementById('form-rawat').addEventListener('submit', async function (e) {
@@ -894,7 +983,7 @@ async function loadPenghapusan() {
       '<td>' + badge(p.kategori) + '</td>' +
       '<td>' + fmtDate(p.tanggal_usulan) + '</td>' +
       '<td>' + badge(p.status) + '</td>' +
-      '<td class="row-actions"><button onclick="detailPenghapusan(\'' + p.id_hapus + '\')">Detail</button></td></tr>';
+      '<td class="row-actions"><button onclick="detailPenghapusan(\'' + p.id_hapus + '\')">' + iconLabel('eye', 'Detail') + '</button></td></tr>';
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
@@ -923,8 +1012,8 @@ function detailPenghapusan(id) {
   }).join('') + '</div>' +
   (p.status === 'diusulkan' && isApprover ?
     '<div class="modal-footer">' +
-      '<button class="btn-secondary" onclick="closeModal(); putuskanHapus(\'' + p.id_hapus + '\',\'ditolak\')">Tolak</button>' +
-      '<button class="btn-primary" onclick="closeModal(); putuskanHapus(\'' + p.id_hapus + '\',\'disetujui\')">Setujui</button>' +
+      '<button class="btn-secondary" onclick="closeModal(); putuskanHapus(\'' + p.id_hapus + '\',\'ditolak\')">' + iconLabel('xCircle', 'Tolak') + '</button>' +
+      '<button class="btn-primary" onclick="closeModal(); putuskanHapus(\'' + p.id_hapus + '\',\'disetujui\')">' + iconLabel('check', 'Setujui') + '</button>' +
     '</div>' : '');
   openModal('Detail Penghapusan', detailHtml);
 }
@@ -936,8 +1025,8 @@ document.getElementById('btn-new-penghapusan').addEventListener('click', functio
       KATEGORI_PENGHAPUSAN.map(function (k) { return '<option value="' + k + '">' + k + '</option>'; }).join('') +
     '</select></label>' +
     '<label>Alasan Penghapusan<textarea required id="h-alasan" placeholder="Rusak berat & tidak ekonomis diperbaiki, dst."></textarea></label>' +
-    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
-    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Ajukan</button></div></form>');
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Ajukan') + '</button></div></form>');
   attachNomorInventarisMask(document.getElementById('h-kode'));
 
   document.getElementById('form-hapus').addEventListener('submit', async function (e) {
@@ -955,11 +1044,12 @@ document.getElementById('btn-new-penghapusan').addEventListener('click', functio
 
 function putuskanHapus(id, status) {
   const label = status === 'disetujui' ? 'Setujui' : 'Tolak';
+  const iconName = status === 'disetujui' ? 'check' : 'xCircle';
   openModal(label + ' Penghapusan', '<form id="form-putus">' +
     (status === 'disetujui' ? '<label>Nomor Berita Acara<input id="d-ba"></label>' : '') +
     '<label>Catatan<textarea id="d-ket"></textarea></label>' +
-    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
-    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + label + '</button></div></form>');
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel(iconName, label) + '</button></div></form>');
 
   document.getElementById('form-putus').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -1003,7 +1093,7 @@ function renderRuanganTable() {
   document.querySelector('#table-ruangan tbody').innerHTML = filtered.map(function (r) {
     return '<tr><td class="mono">' + r.kode_ruangan + '</td><td>' + badge(r.institusi) + '</td><td>' + (r.area || '-') + '</td>' +
       '<td>' + (r.gedung || '-') + '</td><td>' + r.nama_ruangan + '</td><td>' + (r.penanggung_jawab || '-') + '</td>' +
-      '<td class="row-actions"><button onclick="editRuangan(\'' + r.kode_ruangan + '\')">Ubah</button> <button onclick="printKIR(\'' + r.kode_ruangan + '\')">Cetak KIR</button></td></tr>';
+      '<td class="row-actions"><button onclick="editRuangan(\'' + r.kode_ruangan + '\')">' + iconLabel('edit', 'Ubah') + '</button> <button onclick="printKIR(\'' + r.kode_ruangan + '\')">' + iconLabel('printer', 'Cetak KIR') + '</button></td></tr>';
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Tidak ada ruangan yang cocok.</td></tr>';
 }
 
@@ -1021,8 +1111,8 @@ function ruanganForm(data) {
     '<label>Gedung<input id="ru-gedung" placeholder="Arafah" value="' + (data.gedung || '') + '"></label>' +
     '<label>Nama Ruangan<input required id="ru-nama" value="' + (data.nama_ruangan || '') + '"></label>' +
     '<label>Penanggung Jawab<input id="ru-pj" value="' + (data.penanggung_jawab || '') + '"></label>' +
-    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
-    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Simpan</button></div></form>';
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Simpan') + '</button></div></form>';
 }
 
 function bindRuanganFormSubmit() {
@@ -1080,32 +1170,6 @@ async function printKIR(kode) {
       const keys = Object.keys(kondisiMap);
       if (keys.length === 1) return (KONDISI_LABEL[keys[0]] || keys[0]);
       return keys.map(function (k) { return (KONDISI_LABEL[k] || k) + ': ' + kondisiMap[k]; }).join(', ');
-    }
-
-    // Menyingkat daftar Nomor Inventaris yang berurutan, mis. empat nomor
-    // 02.01.03.2023.012 s/d .015 menjadi "02.01.03.2023.012-015". Nomor
-    // yang beda tahun/kode klasifikasi atau tidak berurutan dipisah koma.
-    function formatNomorInventarisRanges(nomorList) {
-      const byPrefix = {}; const order = [];
-      nomorList.forEach(function (n) {
-        const idx = n.lastIndexOf('.');
-        const prefix = n.substring(0, idx);
-        const urut = parseInt(n.substring(idx + 1), 10);
-        if (!byPrefix[prefix]) { byPrefix[prefix] = []; order.push(prefix); }
-        byPrefix[prefix].push(urut);
-      });
-      const parts = [];
-      order.forEach(function (prefix) {
-        const sorted = byPrefix[prefix].slice().sort(function (a, b) { return a - b; });
-        let start = sorted[0], prev = sorted[0];
-        for (let i = 1; i <= sorted.length; i++) {
-          if (i < sorted.length && sorted[i] === prev + 1) { prev = sorted[i]; continue; }
-          const padStart = String(start).padStart(3, '0');
-          parts.push(start === prev ? (prefix + '.' + padStart) : (prefix + '.' + padStart + '-' + String(prev).padStart(3, '0')));
-          if (i < sorted.length) { start = sorted[i]; prev = sorted[i]; }
-        }
-      });
-      return parts.join(', ');
     }
 
     const bodyRows = groupOrder.map(function (key, idx) {
@@ -1166,7 +1230,7 @@ function renderReferensiTable() {
   document.querySelector('#table-referensi tbody').innerHTML = filtered.map(function (r) {
     return '<tr><td>' + r.golongan_barang + '</td><td class="mono">' + r.kode_golongan + '</td>' +
       '<td>' + r.jenis_barang + '</td><td class="mono">' + r.kode_klasifikasi + '</td>' +
-      '<td class="row-actions"><button onclick="hapusReferensi(\'' + r.kode_klasifikasi + '\')">Hapus</button></td></tr>';
+      '<td class="row-actions"><button onclick="hapusReferensi(\'' + r.kode_klasifikasi + '\')">' + iconLabel('trash', 'Hapus') + '</button></td></tr>';
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Tidak ada kode yang cocok.</td></tr>';
 }
 
@@ -1183,8 +1247,8 @@ document.getElementById('btn-new-referensi').addEventListener('click', function 
     '<label>Kode Golongan <span style="font-weight:400;color:#888;">(isi hanya jika golongan di atas baru)</span><input id="rf-kode-golongan" placeholder="Contoh: 02.14"></label>' +
     '<label>Jenis Barang<input required id="rf-jenis" placeholder="Contoh: Proyektor"></label>' +
     '<p style="font-size:12px;color:#888;margin-top:-4px;">Kode Klasifikasi akan dibuat otomatis, melanjutkan nomor urut terakhir pada golongan tsb.</p>' +
-    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
-    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Simpan</button></div></form>');
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Simpan') + '</button></div></form>');
 
   document.getElementById('form-referensi').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -1220,7 +1284,7 @@ async function loadUsers() {
       '<td>' + u.role + '</td><td>' + (u.institusi ? badge(u.institusi) : '-') + '</td>' +
       '<td>' + (u.kode_ruangan ? roomName(u.kode_ruangan) : '-') + '</td>' +
       '<td>' + badge(u.status) + '</td>' +
-      '<td class="row-actions"><button onclick="editUser(\'' + u.username + '\')">Ubah</button></td></tr>';
+      '<td class="row-actions"><button onclick="editUser(\'' + u.username + '\')">' + iconLabel('edit', 'Ubah') + '</button></td></tr>';
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
@@ -1251,8 +1315,8 @@ function userForm(data) {
       '<option value="nonaktif"' + (data.status === 'nonaktif' ? ' selected' : '') + '>Nonaktif</option></select></label>' +
     '<label>' + (isEdit ? 'Reset Password (kosongkan jika tidak diubah)' : '') + '</label>' +
     (isEdit ? '<input type="password" id="u-newpass" style="margin-top:-16px;">' : '') +
-    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
-    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Simpan</button></div></form>';
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Simpan') + '</button></div></form>';
 }
 
 document.getElementById('btn-new-user').addEventListener('click', function () {
@@ -1341,10 +1405,10 @@ async function loadStok() {
     return '<tr><td>' + it.nama_barang + '</td><td>' + (it.kategori || '-') + '</td>' +
       '<td>' + stokDisplay + '</td><td>' + it.stok_minimum + ' ' + it.satuan + '</td>' +
       '<td class="row-actions">' +
-        (canMasuk ? '<button onclick="catatMutasi(\'' + it.kode_item + '\',\'masuk\')">+ Masuk</button>' : '') +
-        '<button onclick="catatMutasi(\'' + it.kode_item + '\',\'keluar\')">- Keluar</button>' +
-        '<button onclick="riwayatStok(\'' + it.kode_item + '\')">Riwayat</button>' +
-        (canMasuk ? '<button onclick="editStokItem(\'' + it.kode_item + '\')">Ubah</button>' : '') +
+        (canMasuk ? '<button onclick="catatMutasi(\'' + it.kode_item + '\',\'masuk\')">' + iconLabel('arrowDownCircle', 'Masuk') + '</button>' : '') +
+        '<button onclick="catatMutasi(\'' + it.kode_item + '\',\'keluar\')">' + iconLabel('arrowUpCircle', 'Keluar') + '</button>' +
+        '<button onclick="riwayatStok(\'' + it.kode_item + '\')">' + iconLabel('clock', 'Riwayat') + '</button>' +
+        (canMasuk ? '<button onclick="editStokItem(\'' + it.kode_item + '\')">' + iconLabel('edit', 'Ubah') + '</button>' : '') +
       '</td></tr>';
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
@@ -1363,8 +1427,8 @@ function stokItemForm(data) {
     '<label>Kategori<input id="si-kategori" value="' + (data.kategori || '') + '" placeholder="ATK, Listrik, dll."></label>' +
     '<label>Satuan<input required id="si-satuan" value="' + (data.satuan || '') + '" placeholder="Rim, Botol, Buah, dll."></label>' +
     '<label>Stok Minimum <span style="font-weight:400;color:#888;">(ambang batas peringatan menipis)</span><input required type="number" id="si-minimum" value="' + (data.stok_minimum || 0) + '"></label>' +
-    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
-    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Simpan</button></div></form>';
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Simpan') + '</button></div></form>';
 }
 
 function bindStokItemFormSubmit(kodeItem) {
@@ -1398,13 +1462,14 @@ function editStokItem(kodeItem) {
 function catatMutasi(kodeItem, jenis) {
   const data = STOK_CACHE.find(function (it) { return it.kode_item === kodeItem; });
   const label = jenis === 'masuk' ? 'Barang Masuk' : 'Barang Keluar';
+  const iconName = jenis === 'masuk' ? 'arrowDownCircle' : 'arrowUpCircle';
   openModal('Catat ' + label + ' — ' + (data ? data.nama_barang : ''),
     '<form id="form-mutasi">' +
     '<p style="font-size:13px;color:#444;margin-top:-4px;">Stok saat ini: <strong>' + (data ? data.stok_saat_ini + ' ' + data.satuan : '-') + '</strong></p>' +
     '<label>Jumlah<input required type="number" min="1" id="mt-jumlah"></label>' +
     '<label>Keterangan<textarea id="mt-keterangan" placeholder="' + (jenis === 'masuk' ? 'Contoh: Pembelian dari toko ABC' : 'Contoh: Dipakai untuk ujian semester Kelas 9') + '"></textarea></label>' +
-    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
-    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">Catat ' + label + '</button></div></form>');
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel(iconName, 'Catat ' + label) + '</button></div></form>');
 
   document.getElementById('form-mutasi').addEventListener('submit', async function (e) {
     e.preventDefault();
