@@ -42,6 +42,7 @@ const ICONS = {
   users: '<circle cx="9" cy="7" r="4"/><path d="M17 11a4 4 0 000-8"/><path d="M1 21v-2a4 4 0 014-4h8a4 4 0 014 4v2"/><path d="M23 21v-2a4 4 0 00-3-3.87"/>',
   sliders: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
   logout: '<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
+  login: '<path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>',
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>',
   eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
   printer: '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
@@ -51,7 +52,8 @@ const ICONS = {
   clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
   arrowDownCircle: '<circle cx="12" cy="12" r="10"/><polyline points="8 12 12 16 16 12"/><line x1="12" y1="8" x2="12" y2="16"/>',
   arrowUpCircle: '<circle cx="12" cy="12" r="10"/><polyline points="16 12 12 8 8 12"/><line x1="12" y1="16" x2="12" y2="8"/>',
-  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  menu: '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>'
 };
 
 function icon(name, size) {
@@ -165,6 +167,7 @@ function initNavIcons() {
     el.dataset.iconApplied = '1';
   });
 }
+initNavIcons(); // langsung dipanggil supaya tombol "Masuk" di layar login juga berikon
 
 function enterApp() {
   document.getElementById('view-login').classList.add('hidden');
@@ -199,8 +202,20 @@ if (STATE.token && STATE.user) enterApp();
 
 // ---------------- NAVIGASI TAB ----------------
 document.querySelectorAll('.tab-btn').forEach(function (btn) {
-  btn.addEventListener('click', function () { switchView(btn.dataset.view); });
+  btn.addEventListener('click', function () { switchView(btn.dataset.view); closeMobileDrawer(); });
 });
+
+// ---------------- DRAWER NAVIGASI MOBILE (hamburger menu) ----------------
+function openMobileDrawer() {
+  document.querySelector('.sidebar').classList.add('mobile-open');
+  document.getElementById('mobile-nav-backdrop').classList.remove('hidden');
+}
+function closeMobileDrawer() {
+  document.querySelector('.sidebar').classList.remove('mobile-open');
+  document.getElementById('mobile-nav-backdrop').classList.add('hidden');
+}
+document.getElementById('btn-mobile-menu').addEventListener('click', openMobileDrawer);
+document.getElementById('mobile-nav-backdrop').addEventListener('click', closeMobileDrawer);
 
 function switchView(view) {
   document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.view === view); });
@@ -431,8 +446,8 @@ async function loadBarang(page) {
       '<td>' + badge(b.kondisi) + '</td>' +
       '<td>' + badge(b.status) + '</td>' +
       '<td class="row-actions">' +
-        '<button onclick="editBarang(\'' + b.nomor_inventaris + '\')">' + iconLabel('edit', 'Ubah') + '</button>' +
-        '<button onclick="printKIB(\'' + b.nomor_inventaris + '\')">' + iconLabel('printer', 'Cetak KIB') + '</button>' +
+        '<button data-tooltip="Ubah" onclick="editBarang(\'' + b.nomor_inventaris + '\')">' + icon('edit') + '</button>' +
+        '<button data-tooltip="Cetak KIB" onclick="printKIB(\'' + b.nomor_inventaris + '\')">' + icon('printer') + '</button>' +
       '</td></tr>';
   }).join('') || '<tr><td colspan="8" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 
@@ -751,7 +766,7 @@ async function loadPeminjaman() {
       '<td class="item-name-cell">' + p.jenis_barang + '<span class="item-sub">' + p.nomor_inventaris + '</span></td>' +
       '<td>' + p.nama_peminjam + '</td><td>' + (p.keperluan || '-') + '</td>' +
       '<td>' + fmtDate(p.tanggal_pinjam) + '</td>' +
-      '<td class="row-actions"><button onclick="detailPeminjaman(\'' + p.id_pinjam + '\')">' + iconLabel('eye', 'Detail') + '</button></td></tr>';
+      '<td class="row-actions"><button data-tooltip="Detail" onclick="detailPeminjaman(\'' + p.id_pinjam + '\')">' + icon('eye') + '</button></td></tr>';
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
@@ -836,7 +851,7 @@ async function loadKerusakan() {
       '<td>' + roomName(k.kode_ruangan_barang) + '</td>' +
       '<td>' + fmtDate(k.tanggal_lapor) + '</td>' +
       '<td>' + badge(k.status_penanganan) + '</td>' +
-      '<td class="row-actions"><button onclick="detailKerusakan(\'' + k.id_lapor + '\')">' + iconLabel('eye', 'Detail') + '</button></td></tr>';
+      '<td class="row-actions"><button data-tooltip="Detail" onclick="detailKerusakan(\'' + k.id_lapor + '\')">' + icon('eye') + '</button></td></tr>';
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
@@ -916,7 +931,7 @@ async function loadPerawatan() {
       '<td class="item-name-cell">' + p.jenis_barang + '<span class="item-sub">' + p.nomor_inventaris + '</span></td>' +
       '<td>' + roomName(p.kode_ruangan_barang) + '</td>' +
       '<td>' + fmtDate(p.tanggal) + '</td><td>' + p.jenis_perawatan + '</td>' +
-      '<td class="row-actions"><button onclick="detailPerawatan(\'' + p.id_rawat + '\')">' + iconLabel('eye', 'Detail') + '</button></td></tr>';
+      '<td class="row-actions"><button data-tooltip="Detail" onclick="detailPerawatan(\'' + p.id_rawat + '\')">' + icon('eye') + '</button></td></tr>';
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
@@ -983,7 +998,7 @@ async function loadPenghapusan() {
       '<td>' + badge(p.kategori) + '</td>' +
       '<td>' + fmtDate(p.tanggal_usulan) + '</td>' +
       '<td>' + badge(p.status) + '</td>' +
-      '<td class="row-actions"><button onclick="detailPenghapusan(\'' + p.id_hapus + '\')">' + iconLabel('eye', 'Detail') + '</button></td></tr>';
+      '<td class="row-actions"><button data-tooltip="Detail" onclick="detailPenghapusan(\'' + p.id_hapus + '\')">' + icon('eye') + '</button></td></tr>';
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
@@ -1093,7 +1108,7 @@ function renderRuanganTable() {
   document.querySelector('#table-ruangan tbody').innerHTML = filtered.map(function (r) {
     return '<tr><td class="mono">' + r.kode_ruangan + '</td><td>' + badge(r.institusi) + '</td><td>' + (r.area || '-') + '</td>' +
       '<td>' + (r.gedung || '-') + '</td><td>' + r.nama_ruangan + '</td><td>' + (r.penanggung_jawab || '-') + '</td>' +
-      '<td class="row-actions"><button onclick="editRuangan(\'' + r.kode_ruangan + '\')">' + iconLabel('edit', 'Ubah') + '</button> <button onclick="printKIR(\'' + r.kode_ruangan + '\')">' + iconLabel('printer', 'Cetak KIR') + '</button></td></tr>';
+      '<td class="row-actions"><button data-tooltip="Ubah" onclick="editRuangan(\'' + r.kode_ruangan + '\')">' + icon('edit') + '</button> <button data-tooltip="Cetak KIR" onclick="printKIR(\'' + r.kode_ruangan + '\')">' + icon('printer') + '</button></td></tr>';
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Tidak ada ruangan yang cocok.</td></tr>';
 }
 
@@ -1230,7 +1245,7 @@ function renderReferensiTable() {
   document.querySelector('#table-referensi tbody').innerHTML = filtered.map(function (r) {
     return '<tr><td>' + r.golongan_barang + '</td><td class="mono">' + r.kode_golongan + '</td>' +
       '<td>' + r.jenis_barang + '</td><td class="mono">' + r.kode_klasifikasi + '</td>' +
-      '<td class="row-actions"><button onclick="hapusReferensi(\'' + r.kode_klasifikasi + '\')">' + iconLabel('trash', 'Hapus') + '</button></td></tr>';
+      '<td class="row-actions"><button data-tooltip="Hapus" onclick="hapusReferensi(\'' + r.kode_klasifikasi + '\')">' + icon('trash') + '</button></td></tr>';
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Tidak ada kode yang cocok.</td></tr>';
 }
 
@@ -1284,7 +1299,7 @@ async function loadUsers() {
       '<td>' + u.role + '</td><td>' + (u.institusi ? badge(u.institusi) : '-') + '</td>' +
       '<td>' + (u.kode_ruangan ? roomName(u.kode_ruangan) : '-') + '</td>' +
       '<td>' + badge(u.status) + '</td>' +
-      '<td class="row-actions"><button onclick="editUser(\'' + u.username + '\')">' + iconLabel('edit', 'Ubah') + '</button></td></tr>';
+      '<td class="row-actions"><button data-tooltip="Ubah" onclick="editUser(\'' + u.username + '\')">' + icon('edit') + '</button></td></tr>';
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
@@ -1405,10 +1420,10 @@ async function loadStok() {
     return '<tr><td>' + it.nama_barang + '</td><td>' + (it.kategori || '-') + '</td>' +
       '<td>' + stokDisplay + '</td><td>' + it.stok_minimum + ' ' + it.satuan + '</td>' +
       '<td class="row-actions">' +
-        (canMasuk ? '<button onclick="catatMutasi(\'' + it.kode_item + '\',\'masuk\')">' + iconLabel('arrowDownCircle', 'Masuk') + '</button>' : '') +
-        '<button onclick="catatMutasi(\'' + it.kode_item + '\',\'keluar\')">' + iconLabel('arrowUpCircle', 'Keluar') + '</button>' +
-        '<button onclick="riwayatStok(\'' + it.kode_item + '\')">' + iconLabel('clock', 'Riwayat') + '</button>' +
-        (canMasuk ? '<button onclick="editStokItem(\'' + it.kode_item + '\')">' + iconLabel('edit', 'Ubah') + '</button>' : '') +
+        (canMasuk ? '<button data-tooltip="Barang Masuk" onclick="catatMutasi(\'' + it.kode_item + '\',\'masuk\')">' + icon('arrowDownCircle') + '</button>' : '') +
+        '<button data-tooltip="Barang Keluar" onclick="catatMutasi(\'' + it.kode_item + '\',\'keluar\')">' + icon('arrowUpCircle') + '</button>' +
+        '<button data-tooltip="Riwayat" onclick="riwayatStok(\'' + it.kode_item + '\')">' + icon('clock') + '</button>' +
+        (canMasuk ? '<button data-tooltip="Ubah" onclick="editStokItem(\'' + it.kode_item + '\')">' + icon('edit') + '</button>' : '') +
       '</td></tr>';
   }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
