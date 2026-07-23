@@ -16,7 +16,7 @@
   <div class="login-card">
     <img src="assets/logo-dafi.png" alt="Logo DAFI" class="login-logo">
     <div class="login-mark">SI<span>DAFI</span></div>
-    <p class="subtitle">SISTEM INVENTARISASI DIGITAL DAFI Ver. 2.2</p>
+    <p class="subtitle">SISTEM INVENTARISASI DIGITAL DAFI Ver. 2.3</p>
     <form id="form-login">
       <label>Username
         <input type="text" id="login-username" required autocomplete="username">
@@ -41,7 +41,7 @@
     <div class="brand">
       <div class="brand-logo-chip"><img src="assets/logo-dafi.png" alt="Logo DAFI"></div>
       <div class="brand-mark">SI<span>DAFI</span></div>
-      <div class="brand-tagline">SISTEM INVENTARISASI<br>DIGITAL DAFI Ver. 2.2</div>
+      <div class="brand-tagline">SISTEM INVENTARISASI<br>DIGITAL DAFI Ver. 2.3</div>
     </div>
     <div class="brand-user" id="current-user-label"></div>
     <nav class="tabs">
@@ -315,9 +315,20 @@
 <div id="toast" class="toast hidden"></div>
 
 <!-- ===================== PRINT PREVIEW ===================== -->
+<!-- ===================== SINKRONISASI PERTAMA KALI (per perangkat) ===================== -->
+<div id="first-sync-overlay" class="first-sync-overlay hidden">
+  <div class="first-sync-card">
+    <img src="assets/logo-dafi.png" alt="Logo DAFI" class="login-logo">
+    <div class="login-mark">SI<span>DAFI</span></div>
+    <p class="subtitle">MENYIAPKAN PERANGKAT INI</p>
+    <div class="sync-progress-track"><div class="sync-progress-fill" id="sync-progress-fill"></div></div>
+    <p class="sync-status-text" id="sync-status-text">Menghubungkan ke server...</p>
+  </div>
+</div>
+
 <div id="print-preview-overlay" class="print-preview-overlay hidden">
   <div class="print-preview-toolbar no-print">
-    <span class="print-preview-title">Pratinjau Cetak</span>
+    <span class="print-preview-title">Pratinjau Cetak<span class="print-scroll-hint"> — geser untuk lihat halaman penuh</span></span>
     <div>
       <button id="btn-print-now" class="btn-primary">🖨️ Cetak / Simpan sebagai PDF</button>
       <button id="btn-close-print" class="btn-secondary" data-icon="xCircle">Tutup</button>
