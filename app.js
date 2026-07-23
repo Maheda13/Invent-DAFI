@@ -5,6 +5,7 @@ const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbxAIre7ego9fmtx-sWV3Z1zTBFZZFV_7rlnnnntpOFpFwe-PQ-S8KfHXjmUSlDHGIvx/exec'
 };
 
+
 let STATE = {
   token: localStorage.getItem('sidafi_token') || null,
   user: JSON.parse(localStorage.getItem('sidafi_user') || 'null'),
@@ -171,7 +172,6 @@ initNavIcons(); // langsung dipanggil supaya tombol "Masuk" di layar login juga 
 
 function enterApp() {
   document.getElementById('view-login').classList.add('hidden');
-  document.getElementById('view-app').classList.remove('hidden');
   document.getElementById('current-user-label').textContent = STATE.user.nama + ' — ' + STATE.user.role;
   initNavIcons();
   if (STATE.user.role !== 'admin') {
@@ -180,22 +180,108 @@ function enterApp() {
   if (STATE.user.role !== 'admin' && STATE.user.role !== 'penanggung_jawab') {
     document.querySelectorAll('.pjb-only').forEach(function (el) { el.classList.add('hidden'); });
   }
-  loadBootstrapData();
-  switchView('dashboard');
+
+  const cache = loadDataCache();
+  if (cache) {
+    // Perangkat ini sudah pernah sinkron sebelumnya - langsung tampil
+    // instan dari cache lokal, lalu diam-diam refresh di latar belakang
+    // supaya datanya tetap segar tanpa bikin pengguna menunggu.
+    hydrateFromCache(cache);
+    document.getElementById('view-app').classList.remove('hidden');
+    switchView('dashboard');
+    refreshBootstrapInBackground();
+  } else {
+    // Pertama kali login di perangkat ini - unduh data awal dengan
+    // indikator progress, supaya akses berikutnya terasa lebih smooth.
+    runFirstTimeSync();
+  }
 }
 
-// Ambil Ruangan + Referensi Kode sekaligus dalam 1 request (lebih cepat
-// daripada 2 request terpisah saat baru login).
-async function loadBootstrapData() {
-  const res = await api('getBootstrapData', {});
-  STATE.ruanganList = res.data.ruangan;
-  STATE.referensiList = res.data.referensiKode;
-  STATE.pengaturan = res.data.pengaturan || {};
+const DATA_CACHE_KEY = 'sidafi_data_cache_v1';
 
+function loadDataCache() {
+  try {
+    const raw = localStorage.getItem(DATA_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+function saveDataCache() {
+  try {
+    localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({
+      ruangan: STATE.ruanganList,
+      referensiKode: STATE.referensiList,
+      pengaturan: STATE.pengaturan,
+      cachedAt: Date.now()
+    }));
+  } catch (e) { /* storage penuh/nonaktif (mis. mode incognito) - abaikan, tidak fatal */ }
+}
+
+function hydrateFromCache(cache) {
+  STATE.ruanganList = cache.ruangan || [];
+  STATE.referensiList = cache.referensiKode || [];
+  STATE.pengaturan = cache.pengaturan || {};
+  renderGolonganFilterOptions();
+}
+
+function renderGolonganFilterOptions() {
   const golonganUnik = [...new Set(STATE.referensiList.map(function (r) { return r.golongan_barang; }))];
   const filterGol = document.getElementById('filter-golongan');
   filterGol.innerHTML = '<option value="">Semua Golongan</option>' +
     golonganUnik.map(function (g) { return '<option value="' + g + '">' + g + '</option>'; }).join('');
+}
+
+// Sinkronisasi pertama kali di perangkat baru: tampilkan overlay dengan
+// progress bar sambil mengambil data Ruangan + Referensi Kode + Pengaturan,
+// lalu simpan ke cache lokal (localStorage) supaya login berikutnya di
+// perangkat yang sama tidak perlu menunggu lagi.
+async function runFirstTimeSync() {
+  const overlay = document.getElementById('first-sync-overlay');
+  const fill = document.getElementById('sync-progress-fill');
+  const statusText = document.getElementById('sync-status-text');
+  overlay.classList.remove('hidden');
+  fill.style.width = '15%';
+  statusText.textContent = 'Menyiapkan data ruangan & klasifikasi barang...';
+
+  try {
+    const res = await api('getBootstrapData', {});
+    STATE.ruanganList = res.data.ruangan;
+    STATE.referensiList = res.data.referensiKode;
+    STATE.pengaturan = res.data.pengaturan || {};
+    renderGolonganFilterOptions();
+
+    fill.style.width = '75%';
+    statusText.textContent = 'Menyimpan cache lokal untuk akses berikutnya...';
+    saveDataCache();
+
+    fill.style.width = '100%';
+    statusText.textContent = 'Siap!';
+  } catch (err) {
+    // Tetap lanjut meski sinkronisasi awal gagal (mis. koneksi lambat) -
+    // pengguna masih bisa pakai aplikasi, data akan diambil per-halaman
+    // seperti biasa saat masing-masing tab dibuka.
+    statusText.textContent = 'Gagal memuat sebagian data, melanjutkan...';
+  }
+
+  setTimeout(function () {
+    overlay.classList.add('hidden');
+    document.getElementById('view-app').classList.remove('hidden');
+    switchView('dashboard');
+  }, 300);
+}
+
+// Refresh diam-diam di latar belakang (tanpa overlay/loading bar) untuk
+// pengguna yang datanya sudah di-hydrate dari cache - supaya data tetap
+// segar tanpa mengganggu pengalaman yang sudah terasa instan.
+async function refreshBootstrapInBackground() {
+  try {
+    const res = await api('getBootstrapData', {});
+    STATE.ruanganList = res.data.ruangan;
+    STATE.referensiList = res.data.referensiKode;
+    STATE.pengaturan = res.data.pengaturan || {};
+    renderGolonganFilterOptions();
+    saveDataCache();
+  } catch (e) { /* biarkan tetap pakai data cache lama kalau refresh gagal */ }
 }
 
 if (STATE.token && STATE.user) enterApp();
