@@ -2,9 +2,8 @@
 // KONFIGURASI - ganti dengan URL Web App Apps Script Anda
 // ============================================================
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbxAIre7ego9fmtx-sWV3Z1zTBFZZFV_7rlnnnntpOFpFwe-PQ-S8KfHXjmUSlDHGIvx/exec'
+  API_URL: 'https://script.google.com/macros/s/AKfycbzWqOWmO6UHll9ue99lgD93IA7Nt3BmK8oWCYv-Mkem1vIUkSWjT1q-_MTAfHxu8vYX/exec'
 };
-
 
 let STATE = {
   token: localStorage.getItem('sidafi_token') || null,
@@ -54,7 +53,8 @@ const ICONS = {
   arrowDownCircle: '<circle cx="12" cy="12" r="10"/><polyline points="8 12 12 16 16 12"/><line x1="12" y1="8" x2="12" y2="16"/>',
   arrowUpCircle: '<circle cx="12" cy="12" r="10"/><polyline points="16 12 12 8 8 12"/><line x1="12" y1="16" x2="12" y2="8"/>',
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
-  menu: '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>'
+  menu: '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
+  bell: '<path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>'
 };
 
 function icon(name, size) {
@@ -174,11 +174,19 @@ function enterApp() {
   document.getElementById('view-login').classList.add('hidden');
   document.getElementById('current-user-label').textContent = STATE.user.nama + ' — ' + STATE.user.role;
   initNavIcons();
+  document.getElementById('notif-bell-icon').innerHTML = icon('bell');
   if (STATE.user.role !== 'admin') {
     document.querySelectorAll('.admin-only').forEach(function (el) { el.classList.add('hidden'); });
   }
   if (STATE.user.role !== 'admin' && STATE.user.role !== 'penanggung_jawab') {
     document.querySelectorAll('.pjb-only').forEach(function (el) { el.classList.add('hidden'); });
+  }
+  if (STATE.user.role !== 'keuangan') {
+    document.querySelectorAll('.keuangan-only').forEach(function (el) { el.classList.add('hidden'); });
+  } else {
+    document.querySelectorAll('.keuangan-only').forEach(function (el) { el.classList.remove('hidden'); });
+    document.querySelectorAll('.write-action').forEach(function (el) { el.classList.add('hidden'); });
+    refreshNotifBadge();
   }
 
   const cache = loadDataCache();
@@ -508,7 +516,7 @@ function jenisBarangOptionsForGolongan(golongan, selected) {
 
 // ---------------- BARANG ----------------
 async function loadBarang(page) {
-  showTableLoading('#table-barang tbody', 8);
+  showTableLoading('#table-barang tbody', 10);
   const payload = {
     page: page || 1,
     pageSize: 20,
@@ -531,11 +539,14 @@ async function loadBarang(page) {
       '<td>' + roomName(b.kode_ruangan) + '</td>' +
       '<td>' + badge(b.kondisi) + '</td>' +
       '<td>' + badge(b.status) + '</td>' +
+      '<td class="col-wide">' + b.tahun_perolehan + '</td>' +
+      '<td class="col-wide">' + rupiah(b.harga) + '</td>' +
       '<td class="row-actions">' +
-        '<button data-tooltip="Ubah" onclick="editBarang(\'' + b.nomor_inventaris + '\')">' + icon('edit') + '</button>' +
+        (STATE.user.role !== 'keuangan' ? '<button data-tooltip="Ubah" onclick="editBarang(\'' + b.nomor_inventaris + '\')">' + icon('edit') + '</button>' : '') +
         '<button data-tooltip="Cetak KIB" onclick="printKIB(\'' + b.nomor_inventaris + '\')">' + icon('printer') + '</button>' +
+        (STATE.user.role === 'admin' ? '<button data-tooltip="Hapus Draf" onclick="hapusBarangDraft(\'' + b.nomor_inventaris + '\')">' + icon('trash') + '</button>' : '') +
       '</td></tr>';
-  }).join('') || '<tr><td colspan="8" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+  }).join('') || '<tr><td colspan="10" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 
   const totalPages = Math.max(1, Math.ceil(res.total / res.pageSize));
   document.getElementById('pagination-barang').innerHTML = buildPagination(payload.page, totalPages, 'loadBarang');
@@ -727,15 +738,6 @@ function bindBarangFormSubmit(nomorInventaris) {
   });
 }
 
-// Info kop surat cetak KIB/KIR - dipakai untuk teks alt saja; tampilan
-// visual kop surat sekarang memakai gambar background dari sekolah
-// (lihat printBgImage()). SEKOLAH_INFO tidak lagi dipakai untuk render.
-const SEKOLAH_INFO = {
-  nama: 'PESANTREN AL QUR\'AN SCIENCE DAFI',
-  alamat: 'Sarirogo, Kecamatan Sidoarjo, Kabupaten Sidoarjo, Jawa Timur',
-  kontak: 'dafi.sch.id'
-};
-
 // Blok tanda tangan 2 kolom. Kalau nama diisi, otomatis dicetak di
 // bawah kolom tanda tangan; kalau kosong, tampil garis titik-titik.
 function sigBlock(label, nama) {
@@ -844,7 +846,7 @@ async function printKIB(nomorInventaris) {
 // ---------------- PEMINJAMAN ----------------
 let PEMINJAMAN_CACHE = [];
 async function loadPeminjaman() {
-  showTableLoading('#table-peminjaman tbody', 5);
+  showTableLoading('#table-peminjaman tbody', 8);
   const res = await api('listPeminjaman', {});
   PEMINJAMAN_CACHE = res.data;
   document.querySelector('#table-peminjaman tbody').innerHTML = res.data.map(function (p) {
@@ -852,8 +854,11 @@ async function loadPeminjaman() {
       '<td class="item-name-cell">' + p.jenis_barang + '<span class="item-sub">' + p.nomor_inventaris + '</span></td>' +
       '<td>' + p.nama_peminjam + '</td><td>' + (p.keperluan || '-') + '</td>' +
       '<td>' + fmtDate(p.tanggal_pinjam) + '</td>' +
+      '<td class="col-wide">' + roomName(p.ruangan_tujuan) + '</td>' +
+      '<td class="col-wide">' + fmtDate(p.rencana_kembali) + '</td>' +
+      '<td class="col-wide">' + badge(p.status) + '</td>' +
       '<td class="row-actions"><button data-tooltip="Detail" onclick="detailPeminjaman(\'' + p.id_pinjam + '\')">' + icon('eye') + '</button></td></tr>';
-  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
 function detailPeminjaman(id) {
@@ -878,7 +883,7 @@ function detailPeminjaman(id) {
   const detailHtml = '<div class="detail-list">' + rows.map(function (r) {
     return '<div class="detail-row"><span class="dl-label">' + r[0] + '</span><span class="dl-value">' + r[1] + '</span></div>';
   }).join('') + '</div>' +
-  (p.status === 'dipinjam' ? '<div class="modal-footer"><button class="btn-primary" onclick="closeModal(); kembalikanPinjam(\'' + p.id_pinjam + '\')">' + iconLabel('undo', 'Kembalikan Barang') + '</button></div>' : '');
+  (p.status === 'dipinjam' && STATE.user.role !== 'keuangan' ? '<div class="modal-footer"><button class="btn-primary" onclick="closeModal(); kembalikanPinjam(\'' + p.id_pinjam + '\')">' + iconLabel('undo', 'Kembalikan Barang') + '</button></div>' : '');
   openModal('Detail Peminjaman', detailHtml);
 }
 
@@ -928,7 +933,7 @@ async function kembalikanPinjam(id) {
 // ---------------- KERUSAKAN ----------------
 let KERUSAKAN_CACHE = [];
 async function loadKerusakan() {
-  showTableLoading('#table-kerusakan tbody', 5);
+  showTableLoading('#table-kerusakan tbody', 7);
   const res = await api('listKerusakan', {});
   KERUSAKAN_CACHE = res.data;
   document.querySelector('#table-kerusakan tbody').innerHTML = res.data.map(function (k) {
@@ -936,9 +941,11 @@ async function loadKerusakan() {
       '<td class="item-name-cell">' + k.jenis_barang + '<span class="item-sub">' + k.nomor_inventaris + '</span></td>' +
       '<td>' + roomName(k.kode_ruangan_barang) + '</td>' +
       '<td>' + fmtDate(k.tanggal_lapor) + '</td>' +
+      '<td class="col-wide">' + k.pelapor + '</td>' +
+      '<td class="col-wide">' + badge(k.tingkat_kerusakan) + '</td>' +
       '<td>' + badge(k.status_penanganan) + '</td>' +
       '<td class="row-actions"><button data-tooltip="Detail" onclick="detailKerusakan(\'' + k.id_lapor + '\')">' + icon('eye') + '</button></td></tr>';
-  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
 function detailKerusakan(id) {
@@ -960,7 +967,7 @@ function detailKerusakan(id) {
   const detailHtml = '<div class="detail-list">' + rows.map(function (r) {
     return '<div class="detail-row"><span class="dl-label">' + r[0] + '</span><span class="dl-value">' + r[1] + '</span></div>';
   }).join('') + '</div>' +
-  (k.status_penanganan !== 'selesai' ? '<div class="modal-footer"><button class="btn-primary" onclick="closeModal(); prosesKerusakan(\'' + k.id_lapor + '\')">' + iconLabel('check', 'Proses / Selesaikan') + '</button></div>' : '');
+  (k.status_penanganan !== 'selesai' && STATE.user.role !== 'keuangan' ? '<div class="modal-footer"><button class="btn-primary" onclick="closeModal(); prosesKerusakan(\'' + k.id_lapor + '\')">' + iconLabel('check', 'Proses / Selesaikan') + '</button></div>' : '');
   openModal('Detail Kerusakan', detailHtml);
 }
 
@@ -1009,7 +1016,7 @@ function prosesKerusakan(id) {
 // ---------------- PERAWATAN ----------------
 let PERAWATAN_CACHE = [];
 async function loadPerawatan() {
-  showTableLoading('#table-perawatan tbody', 5);
+  showTableLoading('#table-perawatan tbody', 7);
   const res = await api('listPerawatan', {});
   PERAWATAN_CACHE = res.data;
   document.querySelector('#table-perawatan tbody').innerHTML = res.data.map(function (p) {
@@ -1017,8 +1024,10 @@ async function loadPerawatan() {
       '<td class="item-name-cell">' + p.jenis_barang + '<span class="item-sub">' + p.nomor_inventaris + '</span></td>' +
       '<td>' + roomName(p.kode_ruangan_barang) + '</td>' +
       '<td>' + fmtDate(p.tanggal) + '</td><td>' + p.jenis_perawatan + '</td>' +
+      '<td class="col-wide">' + (p.pelaksana || '-') + '</td>' +
+      '<td class="col-wide">' + rupiah(p.biaya) + '</td>' +
       '<td class="row-actions"><button data-tooltip="Detail" onclick="detailPerawatan(\'' + p.id_rawat + '\')">' + icon('eye') + '</button></td></tr>';
-  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
 function detailPerawatan(id) {
@@ -1075,7 +1084,7 @@ const KATEGORI_PENGHAPUSAN = ['Rusak Berat', 'Rusak Ringan', 'Hilang', 'Usang', 
 let PENGHAPUSAN_CACHE = [];
 
 async function loadPenghapusan() {
-  showTableLoading('#table-penghapusan tbody', 5);
+  showTableLoading('#table-penghapusan tbody', 7);
   const res = await api('listPenghapusan', {});
   PENGHAPUSAN_CACHE = res.data;
   document.querySelector('#table-penghapusan tbody').innerHTML = res.data.map(function (p) {
@@ -1083,9 +1092,11 @@ async function loadPenghapusan() {
       '<td class="item-name-cell">' + p.jenis_barang + '<span class="item-sub">' + p.nomor_inventaris + '</span></td>' +
       '<td>' + badge(p.kategori) + '</td>' +
       '<td>' + fmtDate(p.tanggal_usulan) + '</td>' +
+      '<td class="col-wide">' + p.diusulkan_oleh + '</td>' +
+      '<td class="col-wide">' + (p.disetujui_oleh || '-') + '</td>' +
       '<td>' + badge(p.status) + '</td>' +
       '<td class="row-actions"><button data-tooltip="Detail" onclick="detailPenghapusan(\'' + p.id_hapus + '\')">' + icon('eye') + '</button></td></tr>';
-  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
 function detailPenghapusan(id) {
@@ -1394,7 +1405,8 @@ function roleOptions(selected) {
     ['admin', 'Admin'],
     ['petugas', 'Petugas Ruangan'],
     ['penanggung_jawab', 'Penanggung Jawab Bidang'],
-    ['kepala_sekolah', 'Kepala Unit']
+    ['kepala_sekolah', 'Kepala Unit'],
+    ['keuangan', 'Divisi Keuangan (Yayasan)']
   ];
   return roles.map(function (r) {
     return '<option value="' + r[0] + '"' + (r[0] === selected ? ' selected' : '') + '>' + r[1] + '</option>';
@@ -1409,8 +1421,9 @@ function userForm(data) {
     (isEdit ? '' : '<label>Password<input required type="password" id="u-password"></label>') +
     '<label>Nama Lengkap<input required id="u-nama" value="' + (data.nama || '') + '"></label>' +
     '<label>Role<select id="u-role">' + roleOptions(data.role) + '</select></label>' +
-    '<label>Institusi <span style="font-weight:400;color:#888;">(untuk Kepala Unit &amp; Penanggung Jawab Bidang — akses semua ruangan di institusi ini)</span><select id="u-institusi">' + institusiOptions(data.institusi) + '</select></label>' +
+    '<label>Institusi <span style="font-weight:400;color:#888;">(untuk Kepala Unit &amp; Penanggung Jawab Bidang — akses satu institusi saja. Kosongkan untuk Admin &amp; Divisi Keuangan, karena keduanya otomatis lintas-institusi)</span><select id="u-institusi">' + institusiOptions(data.institusi) + '</select></label>' +
     '<label>Kode Ruangan <span style="font-weight:400;color:#888;">(khusus role Petugas — akses satu ruangan saja)</span><select id="u-ruangan"><option value="">-</option>' + ruanganOptions(data.kode_ruangan) + '</select></label>' +
+    '<label>Email <span style="font-weight:400;color:#888;">(untuk notifikasi email — wajib diisi untuk role Divisi Keuangan)</span><input type="email" id="u-email" value="' + (data.email || '') + '" placeholder="nama@contoh.com"></label>' +
     '<label>Status<select id="u-status">' +
       '<option value="aktif"' + (data.status === 'aktif' || !isEdit ? ' selected' : '') + '>Aktif</option>' +
       '<option value="nonaktif"' + (data.status === 'nonaktif' ? ' selected' : '') + '>Nonaktif</option></select></label>' +
@@ -1431,7 +1444,8 @@ document.getElementById('btn-new-user').addEventListener('click', function () {
         nama: document.getElementById('u-nama').value,
         role: document.getElementById('u-role').value,
         institusi: document.getElementById('u-institusi').value,
-        kode_ruangan: document.getElementById('u-ruangan').value
+        kode_ruangan: document.getElementById('u-ruangan').value,
+        email: document.getElementById('u-email').value
       });
       closeModal(); toast('Pengguna berhasil dibuat.'); loadUsers();
     } catch (err) { toast(err.message, true); }
@@ -1451,6 +1465,7 @@ function editUser(username) {
         institusi: document.getElementById('u-institusi').value,
         kode_ruangan: document.getElementById('u-ruangan').value,
         status: document.getElementById('u-status').value,
+        email: document.getElementById('u-email').value,
         newPassword: document.getElementById('u-newpass').value || undefined
       });
       closeModal(); toast('Pengguna berhasil diperbarui.'); loadUsers();
@@ -1507,7 +1522,7 @@ async function loadStok() {
       '<td>' + stokDisplay + '</td><td>' + it.stok_minimum + ' ' + it.satuan + '</td>' +
       '<td class="row-actions">' +
         (canMasuk ? '<button data-tooltip="Barang Masuk" onclick="catatMutasi(\'' + it.kode_item + '\',\'masuk\')">' + icon('arrowDownCircle') + '</button>' : '') +
-        '<button data-tooltip="Barang Keluar" onclick="catatMutasi(\'' + it.kode_item + '\',\'keluar\')">' + icon('arrowUpCircle') + '</button>' +
+        (STATE.user.role !== 'keuangan' ? '<button data-tooltip="Barang Keluar" onclick="catatMutasi(\'' + it.kode_item + '\',\'keluar\')">' + icon('arrowUpCircle') + '</button>' : '') +
         '<button data-tooltip="Riwayat" onclick="riwayatStok(\'' + it.kode_item + '\')">' + icon('clock') + '</button>' +
         (canMasuk ? '<button data-tooltip="Ubah" onclick="editStokItem(\'' + it.kode_item + '\')">' + icon('edit') + '</button>' : '') +
       '</td></tr>';
@@ -1596,5 +1611,100 @@ async function riwayatStok(kodeItem) {
         '<span class="dl-value">' + tanda + m.jumlah + (m.keterangan ? ' (' + m.keterangan + ')' : '') + '</span></div>';
     }).join('') : '<div class="print-empty-note" style="margin:0;">Belum ada riwayat mutasi.</div>';
     openModal('Riwayat Stok — ' + (data ? data.nama_barang : ''), '<div class="detail-list">' + rowsHtml + '</div>');
+  } catch (err) { toast(err.message, true); }
+}
+
+// ---------------- NOTIFIKASI DIVISI KEUANGAN ----------------
+async function refreshNotifBadge() {
+  try {
+    const res = await api('listNotifikasi', { limit: 50 });
+    NOTIF_CACHE = res.data;
+    const badge = document.getElementById('notif-unread-badge');
+    if (res.unread > 0) {
+      badge.textContent = res.unread > 99 ? '99+' : res.unread;
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  } catch (err) { /* biarkan badge apa adanya kalau gagal, jangan ganggu pengguna */ }
+}
+
+let NOTIF_CACHE = [];
+const NOTIF_TIPE_ICON = { pengadaan: 'box', peminjaman_lama: 'swap', penghapusan: 'trash' };
+const NOTIF_TIPE_LABEL = { pengadaan: 'Pengadaan Barang', peminjaman_lama: 'Peminjaman Jangka Panjang', penghapusan: 'Usulan Penghapusan' };
+
+async function openNotifPanel() {
+  try {
+    const res = await api('listNotifikasi', { limit: 50 });
+    NOTIF_CACHE = res.data;
+    const listHtml = NOTIF_CACHE.length ? NOTIF_CACHE.map(function (n) {
+      const belumDibaca = n.dibaca !== true;
+      return '<div class="notif-item ' + (belumDibaca ? 'notif-unread' : '') + '" onclick="bacaNotifikasi(\'' + n.id + '\')">' +
+        '<div class="notif-item-icon">' + icon(NOTIF_TIPE_ICON[n.tipe] || 'box') + '</div>' +
+        '<div class="notif-item-body">' +
+          '<div class="notif-item-title">' + n.judul + (belumDibaca ? ' <span class="notif-dot"></span>' : '') + '</div>' +
+          '<div class="notif-item-msg">' + n.pesan + '</div>' +
+          '<div class="notif-item-time">' + NOTIF_TIPE_LABEL[n.tipe] + ' — ' + fmtDate(n.waktu) + '</div>' +
+        '</div></div>';
+    }).join('') : '<div class="print-empty-note" style="margin:20px;">Belum ada notifikasi.</div>';
+
+    openModal('Notifikasi Divisi Keuangan',
+      '<div class="notif-list">' + listHtml + '</div>' +
+      (NOTIF_CACHE.some(function (n) { return n.dibaca !== true; })
+        ? '<div class="modal-footer"><button class="btn-secondary" onclick="bacaSemuaNotifikasi()">' + iconLabel('check', 'Tandai Semua Dibaca') + '</button></div>'
+        : '')
+    );
+  } catch (err) { toast(err.message, true); }
+}
+
+async function bacaNotifikasi(id) {
+  try {
+    await api('markNotifikasiRead', { id: id });
+    refreshNotifBadge();
+    openNotifPanel();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function bacaSemuaNotifikasi() {
+  try {
+    await api('markNotifikasiRead', {});
+    closeModal();
+    refreshNotifBadge();
+    toast('Semua notifikasi ditandai sudah dibaca.');
+  } catch (err) { toast(err.message, true); }
+}
+
+document.getElementById('btn-notif-bell').addEventListener('click', openNotifPanel);
+
+// ---------------- GANTI PASSWORD (semua role) ----------------
+document.getElementById('btn-ganti-password').addEventListener('click', function () {
+  openModal('Ganti Password', '<form id="form-ganti-password">' +
+    '<label>Password Baru<input required type="password" id="gp-baru" minlength="6"></label>' +
+    '<label>Konfirmasi Password Baru<input required type="password" id="gp-konfirmasi" minlength="6"></label>' +
+    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Simpan') + '</button></div></form>');
+
+  document.getElementById('form-ganti-password').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const baru = document.getElementById('gp-baru').value;
+    const konfirmasi = document.getElementById('gp-konfirmasi').value;
+    if (baru !== konfirmasi) { toast('Konfirmasi password tidak cocok.', true); return; }
+    try {
+      await api('changePassword', { newPassword: baru });
+      closeModal(); toast('Password berhasil diubah.');
+    } catch (err) { toast(err.message, true); }
+  });
+});
+
+// Hapus draf barang (admin only) - HANYA untuk membatalkan input yang
+// salah/duplikat. Penghapusan resmi barang yang sudah dipakai/tercatat
+// harus lewat alur Penghapusan (ajukan -> disetujui) supaya jejak
+// audit tetap terjaga.
+async function hapusBarangDraft(nomorInventaris) {
+  if (!confirm('Hapus barang ' + nomorInventaris + ' secara PERMANEN dari data?\n\nHanya gunakan ini untuk membatalkan input yang salah/duplikat. Untuk barang yang sudah pernah dipakai/tercatat, gunakan alur Penghapusan resmi (menu Penghapusan) supaya riwayatnya tetap tersimpan.')) return;
+  try {
+    await api('deleteBarangDraft', { nomor_inventaris: nomorInventaris });
+    toast('Barang berhasil dihapus.');
+    loadBarang(STATE.barangPage);
   } catch (err) { toast(err.message, true); }
 }
