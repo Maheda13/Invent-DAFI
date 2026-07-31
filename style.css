@@ -213,11 +213,15 @@ body {
 .notice-card.all-clear .notice-count { color: #0F9D53; }
 
 /* ---------- KOLOM TAMBAHAN KHUSUS LAYAR LEBAR ---------- */
-/* Supaya layar lebar (>=1300px) menampilkan info tambahan alih-alih
-   cuma melebar kosong - kolom ini disembunyikan di layar sempit/normal,
-   dan pengguna tetap bisa lihat semuanya lewat tombol Detail. */
+/* Supaya layar lebar menampilkan info tambahan alih-alih cuma melebar
+   kosong - kolom ini disembunyikan di layar sempit/normal, dan
+   pengguna tetap bisa lihat semuanya lewat tombol Detail.
+   Ambang 1600px (bukan lebar layar mentah) sengaja dipilih supaya
+   sudah memperhitungkan sidebar (~236px) + padding konten (~80px) -
+   jadi kolom baru muncul saat ruang tabel BENAR-BENAR lapang, bukan
+   malah langsung butuh geser horizontal lagi begitu muncul. */
 .col-wide { display: none; }
-@media (min-width: 1300px) {
+@media (min-width: 1600px) {
   .col-wide { display: table-cell; }
 }
 
