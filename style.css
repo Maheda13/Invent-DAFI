@@ -304,12 +304,13 @@ td.mono, .kode-cell { font-family: var(--font-mono); font-size: 12.5px; }
   .pagination .pagination-info { width: 100%; text-align: center; margin: 0 0 4px; }
 }
 
-#form-pengaturan label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 16px; color: #444; }
-#form-pengaturan input {
+#form-pengaturan label, #form-akun label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 16px; color: #444; }
+#form-pengaturan input, #form-akun input {
   width: 100%; margin-top: 6px; padding: 9px 11px; border: 1px solid var(--border);
   border-radius: var(--radius); font-family: var(--font-body); font-size: 13.5px; background: #fff;
 }
-#form-pengaturan input:focus { outline: none; border-color: var(--red); }
+#form-pengaturan input:focus, #form-akun input:focus { outline: none; border-color: var(--red); }
+#form-akun input:disabled { background: var(--gray-light); color: var(--gray); cursor: not-allowed; }
 
 .pengaturan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .pengaturan-card { background: #fff; border: 1px solid var(--border); border-top: 3px solid var(--red); border-radius: var(--radius); padding: 18px 20px; }
