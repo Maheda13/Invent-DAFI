@@ -2,7 +2,7 @@
 // KONFIGURASI - ganti dengan URL Web App Apps Script Anda
 // ============================================================
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbzWqOWmO6UHll9ue99lgD93IA7Nt3BmK8oWCYv-Mkem1vIUkSWjT1q-_MTAfHxu8vYX/exec'
+  API_URL: 'https://script.google.com/macros/s/AKfycbxdLWKDp1r34CNrZjEyCDK2gV6D8JYIC7ZDDNmUuOeLGczAN9JFTnD4RCJVfrQgLYJU/exec'
 };
 
 let STATE = {
@@ -54,7 +54,8 @@ const ICONS = {
   arrowUpCircle: '<circle cx="12" cy="12" r="10"/><polyline points="16 12 12 8 8 12"/><line x1="12" y1="16" x2="12" y2="8"/>',
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   menu: '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
-  bell: '<path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>'
+  bell: '<path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>',
+  userCircle: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="9" r="3"/><path d="M6.5 19a6 6 0 0111 0"/>'
 };
 
 function icon(name, size) {
@@ -327,6 +328,7 @@ function switchView(view) {
   if (view === 'referensi') loadReferensi();
   if (view === 'users') loadUsers();
   if (view === 'pengaturan') loadPengaturanForm();
+  if (view === 'akun') loadAkunForm();
 }
 
 // ---------------- MODAL HELPER ----------------
@@ -1676,24 +1678,63 @@ async function bacaSemuaNotifikasi() {
 
 document.getElementById('btn-notif-bell').addEventListener('click', openNotifPanel);
 
-// ---------------- GANTI PASSWORD (semua role) ----------------
-document.getElementById('btn-ganti-password').addEventListener('click', function () {
-  openModal('Ganti Password', '<form id="form-ganti-password">' +
-    '<label>Password Baru<input required type="password" id="gp-baru" minlength="6"></label>' +
-    '<label>Konfirmasi Password Baru<input required type="password" id="gp-konfirmasi" minlength="6"></label>' +
-    '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
-    '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Simpan') + '</button></div></form>');
+// ---------------- AKUN SAYA (semua role) ----------------
+const ROLE_LABEL = {
+  admin: 'Admin',
+  petugas: 'Petugas Ruangan',
+  penanggung_jawab: 'Penanggung Jawab Bidang',
+  kepala_sekolah: 'Kepala Unit',
+  keuangan: 'Divisi Keuangan (Yayasan)'
+};
 
-  document.getElementById('form-ganti-password').addEventListener('submit', async function (e) {
-    e.preventDefault();
-    const baru = document.getElementById('gp-baru').value;
-    const konfirmasi = document.getElementById('gp-konfirmasi').value;
-    if (baru !== konfirmasi) { toast('Konfirmasi password tidak cocok.', true); return; }
-    try {
-      await api('changePassword', { newPassword: baru });
-      closeModal(); toast('Password berhasil diubah.');
-    } catch (err) { toast(err.message, true); }
-  });
+function tanggungJawabLabel() {
+  const u = STATE.user;
+  if (u.role === 'admin' || u.role === 'keuangan') return 'Semua Institusi (Lintas Institusi)';
+  if (u.role === 'petugas') return roomName(u.kode_ruangan) + (u.kode_ruangan ? '' : ' (belum diatur admin)');
+  if (u.role === 'penanggung_jawab' || u.role === 'kepala_sekolah') {
+    return (u.institusi || '-') + ' (seluruh ruangan di institusi ini)';
+  }
+  return '-';
+}
+
+function loadAkunForm() {
+  document.getElementById('ak-nama').value = STATE.user.nama || '';
+  document.getElementById('ak-username').value = STATE.user.username || '';
+  document.getElementById('ak-role').value = ROLE_LABEL[STATE.user.role] || STATE.user.role;
+  document.getElementById('ak-tanggungjawab').value = tanggungJawabLabel();
+  document.getElementById('ak-password-baru').value = '';
+  document.getElementById('ak-password-konfirmasi').value = '';
+}
+
+document.getElementById('form-akun').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const passwordBaru = document.getElementById('ak-password-baru').value;
+  const passwordKonfirmasi = document.getElementById('ak-password-konfirmasi').value;
+  if (passwordBaru && passwordBaru !== passwordKonfirmasi) {
+    toast('Konfirmasi password baru tidak cocok.', true);
+    return;
+  }
+  try {
+    const res = await api('updateOwnAccount', {
+      nama: document.getElementById('ak-nama').value,
+      newUsername: document.getElementById('ak-username').value,
+      newPassword: passwordBaru || undefined
+    });
+    if (res.requireRelogin) {
+      toast('Data akun berhasil diubah. Silakan login ulang.');
+      setTimeout(function () {
+        STATE.token = null; STATE.user = null;
+        localStorage.removeItem('sidafi_token'); localStorage.removeItem('sidafi_user');
+        document.getElementById('view-app').classList.add('hidden');
+        document.getElementById('view-login').classList.remove('hidden');
+      }, 1200);
+    } else {
+      STATE.user.nama = document.getElementById('ak-nama').value;
+      localStorage.setItem('sidafi_user', JSON.stringify(STATE.user));
+      document.getElementById('current-user-label').textContent = STATE.user.nama + ' — ' + STATE.user.role;
+      toast('Data akun berhasil disimpan.');
+    }
+  } catch (err) { toast(err.message, true); }
 });
 
 // Hapus draf barang (admin only) - HANYA untuk membatalkan input yang
