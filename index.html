@@ -16,7 +16,7 @@
   <div class="login-card">
     <img src="assets/logo-dafi.png" alt="Logo DAFI" class="login-logo">
     <div class="login-mark">SI<span>DAFI</span></div>
-    <p class="subtitle">SISTEM INVENTARISASI DIGITAL DAFI Ver 2.6</p>
+    <p class="subtitle">SISTEM INVENTARISASI DIGITAL DAFI Ver 3.1</p>
     <form id="form-login">
       <label>Username
         <input type="text" id="login-username" required autocomplete="username">
@@ -37,11 +37,16 @@
     <span class="mobile-topbar-title">SI<span>DAFI</span></span>
   </header>
   <div id="mobile-nav-backdrop" class="mobile-nav-backdrop hidden"></div>
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="brand">
       <div class="brand-logo-chip"><img src="assets/logo-dafi.png" alt="Logo DAFI"></div>
-      <div class="brand-mark">SI<span>DAFI</span></div>
-      <div class="brand-tagline">SISTEM INVENTARISASI<br>DIGITAL DAFI Ver 2.6</div>
+      <div class="brand-text">
+        <div class="brand-mark">SI<span>DAFI</span></div>
+        <div class="brand-tagline">SISTEM INVENTARISASI<br>DIGITAL DAFI Ver 3.1</div>
+      </div>
+      <button id="btn-toggle-sidebar" class="btn-toggle-sidebar" title="Ciutkan / Lebarkan Menu" aria-label="Toggle Sidebar">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 19l-7-7 7-7"/><path d="M19 19l-7-7 7-7"/></svg>
+      </button>
     </div>
     <div class="brand-user" id="current-user-label"></div>
     <button id="btn-notif-bell" class="notif-bell-btn keuangan-only">
@@ -49,18 +54,23 @@
       <span id="notif-unread-badge" class="notif-unread-badge hidden">0</span>
     </button>
     <nav class="tabs">
-      <button class="tab-btn active" data-view="dashboard" data-icon="home">Ringkasan</button>
-      <button class="tab-btn" data-view="barang" data-icon="box">Data Barang</button>
-      <button class="tab-btn" data-view="peminjaman" data-icon="swap">Peminjaman</button>
-      <button class="tab-btn" data-view="kerusakan" data-icon="alertTriangle">Kerusakan</button>
-      <button class="tab-btn" data-view="perawatan" data-icon="wrench">Perawatan</button>
-      <button class="tab-btn" data-view="penghapusan" data-icon="trash">Penghapusan</button>
-      <button class="tab-btn" data-view="stok" data-icon="archive">Stok Habis Pakai</button>
-      <button class="tab-btn" data-view="ruangan" data-icon="building">Ruangan</button>
-      <button class="tab-btn admin-only" data-view="referensi" data-icon="tag">Referensi Kode</button>
-      <button class="tab-btn admin-only" data-view="users" data-icon="users">Pengguna</button>
-      <button class="tab-btn admin-only" data-view="pengaturan" data-icon="sliders">Pengaturan</button>
-      <button class="tab-btn" data-view="akun" data-icon="userCircle">Akun Saya</button>
+      <div class="nav-group-label">MENU UTAMA</div>
+      <button class="tab-btn active" data-view="dashboard" data-icon="home" title="Ringkasan">Ringkasan</button>
+      <button class="tab-btn" data-view="barang" data-icon="box" title="Data Barang">Data Barang</button>
+      <button class="tab-btn" data-view="ruangan" data-icon="building" title="Ruangan">Ruangan</button>
+
+      <div class="nav-group-label">OPERASIONAL</div>
+      <button class="tab-btn" data-view="peminjaman" data-icon="swap" title="Peminjaman">Peminjaman</button>
+      <button class="tab-btn" data-view="kerusakan" data-icon="alertTriangle" title="Kerusakan">Kerusakan</button>
+      <button class="tab-btn" data-view="perawatan" data-icon="wrench" title="Perawatan">Perawatan</button>
+      <button class="tab-btn" data-view="penghapusan" data-icon="trash" title="Penghapusan">Penghapusan</button>
+      <button class="tab-btn" data-view="stok" data-icon="archive" title="Stok Habis Pakai">Stok Habis Pakai</button>
+
+      <div class="nav-group-label admin-only">ADMIN & SISTEM</div>
+      <button class="tab-btn admin-only" data-view="referensi" data-icon="tag" title="Referensi Kode">Referensi Kode</button>
+      <button class="tab-btn admin-only" data-view="users" data-icon="users" title="Pengguna">Pengguna</button>
+      <button class="tab-btn admin-only" data-view="pengaturan" data-icon="sliders" title="Pengaturan">Pengaturan</button>
+      <button class="tab-btn" data-view="akun" data-icon="userCircle" title="Akun Saya">Akun Saya</button>
     </nav>
     <button id="btn-logout" class="btn-logout" data-icon="logout">Keluar</button>
   </aside>
@@ -69,9 +79,25 @@
 
     <!-- DASHBOARD -->
     <section id="section-dashboard" class="view-section">
-      <h2>Ringkasan Inventaris</h2>
+      <div class="dashboard-header-row">
+        <div>
+          <h2>Ringkasan Inventaris</h2>
+          <p class="section-subtitle">Pantau aset, siklus audit, dan status operasional sarpras SMP, MA, dan Pesantren DAFI.</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button type="button" class="btn-secondary" onclick="openPusatDokumenModal()" title="Cetak Surat & Dokumen Administrasi Sarpras">
+            <span>📄 Dokumen Sarpras</span>
+          </button>
+          <button type="button" class="btn-secondary btn-quick-find" onclick="openCommandPalette()" title="Pencarian Cepat (Ctrl+K)">
+            <span>🔍 Quick Find</span> <kbd class="kbd-pill">Ctrl+K</kbd>
+          </button>
+        </div>
+      </div>
 
       <div class="hero-grid" id="hero-grid"></div>
+
+      <!-- Kartu Progres Validasi Triwulanan -->
+      <div class="dash-opname-card" id="dash-opname-card"></div>
 
       <div class="dash-block">
         <div class="dash-block-title">Komposisi Status Barang</div>
@@ -79,14 +105,24 @@
         <div class="status-legend" id="status-legend"></div>
       </div>
 
+      <!-- Distribusi Institusi & Top Ruangan Grid -->
+      <div class="dash-extra-grid" id="dash-extra-grid"></div>
+
       <div class="notice-grid" id="notice-grid"></div>
     </section>
 
     <!-- BARANG -->
     <section id="section-barang" class="view-section hidden">
       <div class="section-header">
-        <h2>Data Barang</h2>
-        <button class="btn-primary write-action" id="btn-new-barang" data-icon="plus">Barang Baru</button>
+        <div>
+          <h2>Data Barang</h2>
+          <p class="section-subtitle">Daftar inventaris aset fisik dan kelengkapan dokumen perolehan.</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button type="button" class="btn-secondary" id="btn-import-barang-csv" onclick="openImportWizard()" title="Impor data barang dari file CSV / Excel">📤 Impor CSV</button>
+          <button type="button" class="btn-secondary" id="btn-export-barang-csv" onclick="exportBarangCsv()" title="Unduh data tabel terfilter ke file CSV / Excel">📥 Unduh CSV/Excel</button>
+          <button class="btn-primary write-action" id="btn-new-barang" data-icon="plus">Barang Baru</button>
+        </div>
       </div>
       <div class="filter-row">
         <input type="text" id="filter-search" placeholder="Cari nomor inventaris / jenis / spesifikasi...">
@@ -106,13 +142,37 @@
           <option value="diusulkan_hapus">Diusulkan Hapus</option>
           <option value="dihapus">Dihapus</option>
         </select>
+        <select id="filter-kelengkapan">
+          <option value="">Semua Kelengkapan</option>
+          <option value="tidak_lengkap">⚠️ Data Belum Lengkap</option>
+          <option value="merk_kosong">Merk / Spek Kosong</option>
+          <option value="harga_kosong">Harga Rp 0 / Kosong</option>
+          <option value="lengkap">✅ Data Lengkap</option>
+        </select>
+        <select id="filter-validasi">
+          <option value="">Semua Validasi</option>
+          <option value="perlu_validasi">⏰ Perlu Validasi Ulang (>3 Bulan)</option>
+          <option value="tervalidasi">✅ Tervalidasi (&le;3 Bulan)</option>
+        </select>
       </div>
+
+      <div class="table-meta-bar">
+        <span class="table-result-count" id="barang-result-count">Memuat data...</span>
+        <button type="button" class="btn-reset-filter hidden" id="btn-reset-barang-filter" onclick="resetBarangFilter()">✕ Bersihkan Semua Filter</button>
+      </div>
+
       <div class="table-wrap">
         <table id="table-barang">
           <thead><tr>
-            <th>Nomor Inventaris</th><th>Jenis Barang</th><th>Golongan</th><th>Institusi</th><th>Ruangan</th>
-            <th>Kondisi</th><th>Status</th>
-            <th class="col-wide">Tahun</th><th class="col-wide">Harga Perolehan</th>
+            <th class="sortable-th" onclick="sortBarangColumn('nomor_inventaris')">Nomor Inventaris <span class="sort-icon" id="sort-nomor_inventaris"></span></th>
+            <th class="sortable-th" onclick="sortBarangColumn('jenis_barang')">Jenis Barang <span class="sort-icon" id="sort-jenis_barang"></span></th>
+            <th class="sortable-th" onclick="sortBarangColumn('golongan_barang')">Golongan <span class="sort-icon" id="sort-golongan_barang"></span></th>
+            <th>Institusi</th>
+            <th class="sortable-th" onclick="sortBarangColumn('kode_ruangan')">Ruangan <span class="sort-icon" id="sort-kode_ruangan"></span></th>
+            <th class="sortable-th" onclick="sortBarangColumn('kondisi')">Kondisi <span class="sort-icon" id="sort-kondisi"></span></th>
+            <th class="sortable-th" onclick="sortBarangColumn('status')">Status <span class="sort-icon" id="sort-status"></span></th>
+            <th class="col-wide sortable-th" onclick="sortBarangColumn('tahun_perolehan')">Tahun <span class="sort-icon" id="sort-tahun_perolehan"></span></th>
+            <th class="col-wide sortable-th" onclick="sortBarangColumn('harga')">Harga Perolehan <span class="sort-icon" id="sort-harga"></span></th>
             <th>Aksi</th>
           </tr></thead>
           <tbody></tbody>
@@ -178,8 +238,14 @@
     <!-- PENGHAPUSAN -->
     <section id="section-penghapusan" class="view-section hidden">
       <div class="section-header">
-        <h2>Usulan Penghapusan</h2>
-        <button class="btn-primary write-action" id="btn-new-penghapusan" data-icon="plus">Ajukan Penghapusan</button>
+        <div>
+          <h2>Usulan Penghapusan</h2>
+          <p class="section-subtitle">Daftar usulan dan keputusan penghapusan serta pemusnahan aset sarpras.</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button type="button" class="btn-secondary" id="btn-print-bap-penghapusan" onclick="openBAPSelector()" title="Cetak Berita Acara Pemusnahan Aset">📄 Cetak BAP</button>
+          <button class="btn-primary write-action" id="btn-new-penghapusan" data-icon="plus">Ajukan Penghapusan</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table id="table-penghapusan">
@@ -219,7 +285,10 @@
     <section id="section-ruangan" class="view-section hidden">
       <div class="section-header">
         <h2>Data Ruangan</h2>
-        <button class="btn-primary admin-only" id="btn-new-ruangan" data-icon="plus">Ruangan Baru</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-secondary write-action" id="btn-select-kir-editor" onclick="openSelectRoomForKirEditor()">✏️ Edit KIR Ruangan</button>
+          <button class="btn-primary admin-only" id="btn-new-ruangan" data-icon="plus">Ruangan Baru</button>
+        </div>
       </div>
       <div class="filter-row">
         <input type="text" id="filter-ruangan-search" placeholder="Cari kode / nama ruangan / area / gedung...">
@@ -306,6 +375,25 @@
               <input id="pg-pesantren-waka" placeholder="Contoh: Budi Santoso, S.Pd.">
             </label>
           </div>
+          <div class="pengaturan-card" style="grid-column: 1 / -1;">
+            <div class="pengaturan-card-title">⏰ Pengingat Siklus Validasi Inventaris (Stock Opname)</div>
+            <p style="font-size:12.5px;color:#64748b;margin:0 0 12px;">Sistem otomatis memantau aset yang belum divalidasi ulang secara berkala dan menampilkan pengingat visual serta notifikasi sistem.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:center;">
+              <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;margin:0;cursor:pointer;">
+                <input type="checkbox" id="pg-validasi-aktif" style="width:auto;margin:0;">
+                Aktifkan Mode Pengingat Validasi Berkala
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin:0;">
+                Siklus Validasi:
+                <select id="pg-validasi-siklus" style="width:auto;margin:0;padding:6px 10px;">
+                  <option value="1">Tiap 1 Bulan (30 Hari)</option>
+                  <option value="3" selected>Tiap 3 Bulan (90 Hari - Triwulan Standar)</option>
+                  <option value="6">Tiap 6 Bulan (1 Semester)</option>
+                  <option value="12">Tiap 1 Tahun (Tahunan)</option>
+                </select>
+              </label>
+            </div>
+          </div>
         </div>
         <button type="submit" class="btn-primary" style="margin-top:16px;" data-icon="check">Simpan Semua Pengaturan</button>
       </form>
@@ -384,6 +472,26 @@
     <div id="print-area"></div>
   </div>
 </div>
+
+<!-- ===================== COMMAND PALETTE (Ctrl+K Quick Find) ===================== -->
+<div id="cmd-palette-overlay" class="cmd-palette-overlay hidden">
+  <div class="cmd-palette-card">
+    <div class="cmd-palette-input-wrap">
+      <span class="cmd-palette-icon">🔍</span>
+      <input type="text" id="cmd-palette-input" placeholder="Cari nama barang, nomor inventaris, ruangan, atau menu... (Tekan ESC untuk tutup)" autocomplete="off">
+      <button type="button" class="cmd-palette-close" onclick="closeCommandPalette()">&times;</button>
+    </div>
+    <div class="cmd-palette-results" id="cmd-palette-results"></div>
+    <div class="cmd-palette-footer">
+      <span>Gunakan <kbd>↑</kbd> <kbd>↓</kbd> untuk memilih, <kbd>Enter</kbd> untuk buka, <kbd>ESC</kbd> untuk tutup</span>
+    </div>
+  </div>
+</div>
+
+<!-- Floating Action Button untuk Mobile -->
+<button class="mobile-fab write-action" id="mobile-fab-new" onclick="onMobileFabClick()" title="Tambah Barang Baru" aria-label="Tambah Barang Baru">
+  <span>+</span>
+</button>
 
 <script src="app.js"></script>
 </body>

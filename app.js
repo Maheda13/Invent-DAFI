@@ -5,6 +5,13 @@ const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbxdLWKDp1r34CNrZjEyCDK2gV6D8JYIC7ZDDNmUuOeLGczAN9JFTnD4RCJVfrQgLYJU/exec'
 };
 
+// ============================================================
+// FITUR LABEL STICKER INVENTARIS (DIBEKUKAN SEMENTARA)
+// Ubah nilai menjadi true jika sistem sudah siap dan stabil
+// untuk memunculkan tombol cetak stiker QR Code pada tabel barang & ruangan.
+// ============================================================
+const FEATURE_LABEL_STICKER = false;
+
 let STATE = {
   token: localStorage.getItem('sidafi_token') || null,
   user: JSON.parse(localStorage.getItem('sidafi_user') || 'null'),
@@ -44,6 +51,7 @@ const ICONS = {
   logout: '<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
   login: '<path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>',
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>',
+  clipboard: '<path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>',
   eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
   printer: '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
   undo: '<polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 01-4 4H4"/>',
@@ -300,6 +308,26 @@ document.querySelectorAll('.tab-btn').forEach(function (btn) {
   btn.addEventListener('click', function () { switchView(btn.dataset.view); closeMobileDrawer(); });
 });
 
+// ---------------- COLLAPSIBLE SIDEBAR ----------------
+function initSidebarCollapse() {
+  const isCollapsed = localStorage.getItem('sidafi_sidebar_collapsed') === '1';
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar && isCollapsed) {
+    sidebar.classList.add('collapsed');
+  }
+}
+function toggleSidebarCollapse() {
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  sidebar.classList.toggle('collapsed');
+  localStorage.setItem('sidafi_sidebar_collapsed', sidebar.classList.contains('collapsed') ? '1' : '0');
+}
+const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
+if (btnToggleSidebar) {
+  btnToggleSidebar.addEventListener('click', toggleSidebarCollapse);
+}
+initSidebarCollapse();
+
 // ---------------- DRAWER NAVIGASI MOBILE (hamburger menu) ----------------
 function openMobileDrawer() {
   document.querySelector('.sidebar').classList.add('mobile-open');
@@ -332,16 +360,35 @@ function switchView(view) {
 }
 
 // ---------------- MODAL HELPER ----------------
-function openModal(title, bodyHtml) {
+function openModal(title, bodyHtml, sizeClass) {
+  const card = document.querySelector('#modal-overlay .modal-card');
+  if (card) {
+    card.classList.remove('modal-xl', 'modal-lg');
+    if (sizeClass) card.classList.add(sizeClass);
+  }
   document.getElementById('modal-title').textContent = title;
   document.getElementById('modal-body').innerHTML = bodyHtml;
   document.getElementById('modal-overlay').classList.remove('hidden');
 }
-function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
+function closeModal() {
+  const card = document.querySelector('#modal-overlay .modal-card');
+  if (card) card.classList.remove('modal-xl', 'modal-lg');
+  document.getElementById('modal-overlay').classList.add('hidden');
+}
 document.getElementById('modal-close').addEventListener('click', closeModal);
 document.getElementById('modal-overlay').addEventListener('click', function (e) {
   if (e.target.id === 'modal-overlay') closeModal();
 });
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 function badge(text) {
   const cls = String(text).toLowerCase().replace(/\s+/g, '-');
@@ -434,6 +481,34 @@ async function loadDashboard() {
       '<div class="hero-sub">akumulasi harga perolehan</div>' +
     '</div>';
 
+  // Kartu Progres Validasi Triwulanan (Opname)
+  const opnameEl = document.getElementById('dash-opname-card');
+  if (opnameEl) {
+    const pct = s.progres_validasi_pct !== undefined ? s.progres_validasi_pct : 100;
+    const isWarning = pct < 80;
+    const validCount = Math.max(0, (s.total_barang || 0) - (s.barang_perlu_validasi || 0));
+    opnameEl.innerHTML =
+      '<div class="dash-opname-header">' +
+        '<div>' +
+          '<h3 class="dash-opname-title">' + icon('check', 18) + ' Siklus Validasi Opname Triwulan (3 Bulan)</h3>' +
+          '<p class="dash-opname-sub">Progres verifikasi fisik aset secara berkala untuk menjaga keakuratan inventaris</p>' +
+        '</div>' +
+        '<div class="dash-opname-pct ' + (isWarning ? 'warning' : '') + '">' + pct + '%</div>' +
+      '</div>' +
+      '<div class="opname-progress-track">' +
+        '<div class="opname-progress-fill ' + (isWarning ? 'warning' : '') + '" style="width:' + pct + '%"></div>' +
+      '</div>' +
+      '<div class="dash-opname-footer">' +
+        '<span><strong>' + validCount.toLocaleString('id-ID') + '</strong> dari <strong>' + (s.total_barang || 0).toLocaleString('id-ID') + '</strong> barang telah tervalidasi</span>' +
+        '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
+          '<button class="btn btn-sm btn-outline-white" onclick="printBeritaAcaraOpname()">' + icon('printer', 14) + '<span>Cetak BA Opname</span></button>' +
+          (s.barang_perlu_validasi > 0
+            ? '<button class="btn btn-sm btn-outline-white" onclick="filterBarangPerluValidasi()">' + icon('alertTriangle', 14) + '<span>Lihat Perlu Validasi (' + s.barang_perlu_validasi + ')</span></button>'
+            : '<span style="font-size:0.85rem;font-weight:600;opacity:0.95;">' + icon('check', 14) + ' Semua Aset Tervalidasi</span>') +
+        '</div>' +
+      '</div>';
+  }
+
   // Status bar proporsional
   const statusKeys = ['tersedia', 'dipinjam', 'rusak', 'diusulkan_hapus', 'dihapus'];
   const total = statusKeys.reduce(function (sum, k) { return sum + (s[k] || 0); }, 0) || 1;
@@ -446,10 +521,55 @@ async function loadDashboard() {
       STATUS_LABELS[k] + ' (' + (s[k] || 0) + ')</span>';
   }).join('');
 
+  // Distribusi Institusi & Top Ruangan
+  const extraGridEl = document.getElementById('dash-extra-grid');
+  if (extraGridEl) {
+    const inst = s.institusi_breakdown || {};
+    const instHtml = INSTITUSI_LIST.map(function (name) {
+      const d = inst[name] || { count: 0, nilai: 0 };
+      return '<div class="inst-card">' +
+        '<div class="inst-name"><span class="badge badge-institusi">' + name + '</span></div>' +
+        '<div class="inst-count">' + (d.count || 0).toLocaleString('id-ID') + ' <small>aset</small></div>' +
+        '<div class="inst-nilai">' + rupiah(d.nilai || 0) + '</div>' +
+      '</div>';
+    }).join('');
+
+    const topRooms = s.top_ruangan || [];
+    let roomsHtml = '';
+    if (topRooms.length === 0) {
+      roomsHtml = '<p style="color:#888;font-size:0.85rem;padding:0.5rem 0;">Belum ada data ruangan.</p>';
+    } else {
+      roomsHtml = '<ul class="top-rooms-list">' + topRooms.map(function (r, idx) {
+        const rName = roomName(r.kode_ruangan || r.ruangan);
+        return '<li class="top-room-item">' +
+          '<span class="top-room-rank">' + (idx + 1) + '</span>' +
+          '<span class="top-room-name" title="' + escapeHtml(rName) + '">' + escapeHtml(rName) + '</span>' +
+          '<span class="top-room-count">' + r.count + ' unit</span>' +
+        '</li>';
+      }).join('') + '</ul>';
+    }
+
+    extraGridEl.innerHTML =
+      '<div class="dash-extra-card">' +
+        '<h4 class="dash-extra-title">' + icon('building', 16) + ' Distribusi Aset per Institusi</h4>' +
+        '<div class="inst-grid">' + instHtml + '</div>' +
+      '</div>' +
+      '<div class="dash-extra-card">' +
+        '<h4 class="dash-extra-title">' + icon('archive', 16) + ' 5 Ruangan Terbanyak Aset</h4>' +
+        roomsHtml +
+      '</div>';
+  }
+
   // Notice cards (aktif, bisa diklik ke tab terkait)
   const kerusakanIssue = s.kerusakan_belum_selesai > 0;
   const penghapusanIssue = s.penghapusan_menunggu > 0;
   const stokIssue = s.stok_menipis > 0;
+  const incompleteCount = s.barang_tidak_lengkap || 0;
+  const incompleteIssue = incompleteCount > 0;
+  const validasiOverdueCount = s.barang_perlu_validasi || 0;
+  const validasiIssue = validasiOverdueCount > 0 && (s.mode_validasi_aktif !== false);
+  const siklusBulan = s.siklus_validasi_bulan || 3;
+
   document.getElementById('notice-grid').innerHTML =
     '<div class="notice-card ' + (kerusakanIssue ? 'has-issue' : 'all-clear') + '" onclick="switchView(\'kerusakan\')">' +
       '<div><div class="notice-text">Kerusakan Belum Selesai</div>' +
@@ -465,7 +585,31 @@ async function loadDashboard() {
       '<div><div class="notice-text">Stok Menipis</div>' +
       '<div class="notice-sub">' + (stokIssue ? 'Perlu segera direstok' : 'Semua stok masih aman') + '</div></div>' +
       '<div class="notice-count">' + s.stok_menipis + '</div>' +
+    '</div>' +
+    '<div class="notice-card ' + (incompleteIssue ? 'has-issue' : 'all-clear') + '" onclick="filterBarangIncomplete()">' +
+      '<div><div class="notice-text">Data Belum Lengkap</div>' +
+      '<div class="notice-sub">' + (incompleteIssue ? ((s.merk_kosong || 0) + ' tanpa merk, ' + (s.harga_kosong || 0) + ' tanpa harga') : 'Semua data barang lengkap') + '</div></div>' +
+      '<div class="notice-count">' + incompleteCount + '</div>' +
+    '</div>' +
+    '<div class="notice-card ' + (validasiIssue ? 'has-issue' : 'all-clear') + '" onclick="filterBarangPerluValidasi()">' +
+      '<div><div class="notice-text">Validasi Berkala (' + siklusBulan + ' Bulan)</div>' +
+      '<div class="notice-sub">' + (validasiIssue ? validasiOverdueCount + ' barang perlu dicek ulang' : 'Semua aset tervalidasi (< ' + siklusBulan + ' bln)') + '</div></div>' +
+      '<div class="notice-count">' + validasiOverdueCount + '</div>' +
     '</div>';
+}
+
+function filterBarangIncomplete() {
+  switchView('barang');
+  const sel = document.getElementById('filter-kelengkapan');
+  if (sel) sel.value = 'tidak_lengkap';
+  loadBarang(1);
+}
+
+function filterBarangPerluValidasi() {
+  switchView('barang');
+  const sel = document.getElementById('filter-validasi');
+  if (sel) sel.value = 'perlu_validasi';
+  loadBarang(1);
 }
 
 // ---------------- RUANGAN (dropdown cache) ----------------
@@ -517,8 +661,180 @@ function jenisBarangOptionsForGolongan(golongan, selected) {
 }
 
 // ---------------- BARANG ----------------
+let BARANG_SORT = { col: null, asc: true };
+
+function renderBarangTableRows() {
+  const tbody = document.querySelector('#table-barang tbody');
+  if (!tbody) return;
+
+  if (!STATE.barangList || STATE.barangList.length === 0) {
+    const hasActiveFilter = Boolean(
+      (document.getElementById('filter-search') && document.getElementById('filter-search').value) ||
+      (document.getElementById('filter-institusi') && document.getElementById('filter-institusi').value) ||
+      (document.getElementById('filter-golongan') && document.getElementById('filter-golongan').value) ||
+      (document.getElementById('filter-kondisi') && document.getElementById('filter-kondisi').value) ||
+      (document.getElementById('filter-status') && document.getElementById('filter-status').value) ||
+      (document.getElementById('filter-kelengkapan') && document.getElementById('filter-kelengkapan').value) ||
+      (document.getElementById('filter-validasi') && document.getElementById('filter-validasi').value)
+    );
+    tbody.innerHTML =
+      '<tr><td colspan="10">' +
+        '<div class="empty-state-card">' +
+          '<div class="empty-state-icon">' + icon('archive', 32) + '</div>' +
+          '<div class="empty-state-title">Tidak ada barang yang cocok</div>' +
+          '<div class="empty-state-desc">' + (hasActiveFilter ? 'Coba ubah atau bersihkan kriteria filter pencarian Anda.' : 'Belum ada data barang inventaris yang tersimpan.') + '</div>' +
+          (hasActiveFilter ? '<button type="button" class="btn btn-sm btn-primary" onclick="resetBarangFilter()">' + icon('undo', 14) + '<span>Bersihkan Filter</span></button>' : '') +
+        '</div>' +
+      '</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = STATE.barangList.map(function (b) {
+    const noMerk = !b.spesifikasi || String(b.spesifikasi).trim() === '' || String(b.spesifikasi).trim() === '-';
+    const noHarga = !b.harga || Number(b.harga) === 0;
+
+    let badgeKelengkapan = '';
+    if (noMerk && noHarga) {
+      badgeKelengkapan = ' <span class="badge badge-warning" title="Merk/Spesifikasi & Harga perolehan belum diisi">⚠️ Spek & Harga Kosong</span>';
+    } else if (noMerk) {
+      badgeKelengkapan = ' <span class="badge badge-warning" title="Merk/Spesifikasi belum diisi">⚠️ Belum Ada Merk</span>';
+    } else if (noHarga) {
+      badgeKelengkapan = ' <span class="badge badge-warning" title="Harga perolehan belum diisi">⚠️ Harga Rp 0</span>';
+    }
+
+    let badgeValidasi = '';
+    if (b.is_overdue) {
+      const hari = b.hari_sejak_validasi || 0;
+      badgeValidasi = ' <span class="badge badge-overdue" title="Terakhir divalidasi: ' + fmtDate(b.terakhir_divalidasi) + ' (' + hari + ' hari lalu)">⏰ Perlu Validasi</span>';
+    } else {
+      badgeValidasi = ' <span class="badge badge-valid" title="Terakhir divalidasi: ' + fmtDate(b.terakhir_divalidasi) + '">✅ Tervalidasi</span>';
+    }
+
+    const spekText = noMerk
+      ? '<span style="color:#d97706;font-style:italic;font-size:11.5px;">(Merk/spek belum diisi)</span>'
+      : '<span style="color:#64748b;font-size:11.5px;">' + escapeHtml(b.spesifikasi) + '</span>';
+
+    const hargaText = noHarga
+      ? '<span style="color:#d97706;font-weight:600;font-size:11.5px;">Rp 0 (Belum diisi)</span>'
+      : rupiah(b.harga);
+
+    return '<tr>' +
+      '<td class="mono">' + b.nomor_inventaris + '</td>' +
+      '<td><strong>' + escapeHtml(b.jenis_barang) + '</strong>' + badgeKelengkapan + badgeValidasi + '<br>' + spekText + '</td>' +
+      '<td>' + (b.golongan_barang || '-') + '</td>' +
+      '<td>' + badge(roomInstitusi(b.kode_ruangan)) + '</td>' +
+      '<td>' + roomName(b.kode_ruangan) + '</td>' +
+      '<td>' + badge(b.kondisi) + '</td>' +
+      '<td>' + badge(b.status) + '</td>' +
+      '<td class="col-wide">' + b.tahun_perolehan + '</td>' +
+      '<td class="col-wide">' + hargaText + '</td>' +
+      '<td class="row-actions">' +
+        (STATE.user.role !== 'keuangan' ? '<button data-tooltip="Ubah" onclick="editBarang(\'' + b.nomor_inventaris + '\')">' + icon('edit') + '</button>' : '') +
+        (STATE.user.role !== 'keuangan' ? '<button data-tooltip="Validasi Ulang Fisik Hari Ini (Reset Siklus 3 Bulan)" onclick="validasiBarangSingle(\'' + b.nomor_inventaris + '\')">' + icon('check') + '</button>' : '') +
+        '<button data-tooltip="Cetak KIB" onclick="printKIB(\'' + b.nomor_inventaris + '\')">' + icon('printer') + '</button>' +
+        (FEATURE_LABEL_STICKER ? '<button data-tooltip="Cetak Label Stiker" onclick="printLabelSticker(\'' + b.nomor_inventaris + '\')">' + icon('tag') + '</button>' : '') +
+        (STATE.user.role === 'admin' ? '<button data-tooltip="Hapus Draf" onclick="hapusBarangDraft(\'' + b.nomor_inventaris + '\')">' + icon('trash') + '</button>' : '') +
+      '</td></tr>';
+  }).join('');
+}
+
+function sortBarangColumn(col, preserveDir) {
+  if (!preserveDir) {
+    if (BARANG_SORT.col === col) {
+      BARANG_SORT.asc = !BARANG_SORT.asc;
+    } else {
+      BARANG_SORT.col = col;
+      BARANG_SORT.asc = true;
+    }
+  }
+
+  ['nomor_inventaris', 'jenis_barang', 'golongan_barang', 'kode_ruangan', 'kondisi', 'status', 'tahun_perolehan', 'harga'].forEach(function (c) {
+    const iconEl = document.getElementById('sort-' + c);
+    if (!iconEl) return;
+    if (c === BARANG_SORT.col) {
+      iconEl.textContent = BARANG_SORT.asc ? '▲' : '▼';
+      iconEl.classList.add('active');
+    } else {
+      iconEl.textContent = '↕';
+      iconEl.classList.remove('active');
+    }
+  });
+
+  if (!STATE.barangList || STATE.barangList.length === 0) return;
+
+  STATE.barangList.sort(function (a, b) {
+    let valA = a[col] || '';
+    let valB = b[col] || '';
+    if (col === 'harga' || col === 'tahun_perolehan') {
+      valA = Number(valA) || 0;
+      valB = Number(valB) || 0;
+    } else if (col === 'kode_ruangan') {
+      valA = roomName(valA).toLowerCase();
+      valB = roomName(valB).toLowerCase();
+    } else {
+      valA = String(valA).toLowerCase();
+      valB = String(valB).toLowerCase();
+    }
+
+    if (valA < valB) return BARANG_SORT.asc ? -1 : 1;
+    if (valA > valB) return BARANG_SORT.asc ? 1 : -1;
+    return 0;
+  });
+
+  renderBarangTableRows();
+}
+
+function resetBarangFilter() {
+  ['filter-search', 'filter-institusi', 'filter-golongan', 'filter-kondisi', 'filter-status', 'filter-kelengkapan', 'filter-validasi'].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  loadBarang(1);
+}
+
+function exportBarangCsv() {
+  if (!STATE.barangList || STATE.barangList.length === 0) {
+    toast('Tidak ada data barang untuk diekspor.', true);
+    return;
+  }
+  const headers = ['Nomor Inventaris', 'Jenis Barang', 'Spesifikasi/Merk', 'Golongan', 'Institusi', 'Ruangan', 'Kondisi', 'Status', 'Tahun Perolehan', 'Harga Perolehan (Rp)', 'Sumber Dana'];
+  const rows = STATE.barangList.map(function (b) {
+    return [
+      b.nomor_inventaris || '',
+      b.jenis_barang || '',
+      b.spesifikasi || '',
+      b.golongan_barang || '',
+      roomInstitusi(b.kode_ruangan) || '',
+      roomName(b.kode_ruangan) || '',
+      b.kondisi || '',
+      b.status || '',
+      b.tahun_perolehan || '',
+      b.harga || 0,
+      b.sumber_dana || ''
+    ].map(function (val) {
+      const s = String(val).replace(/"/g, '""');
+      return '"' + s + '"';
+    }).join(',');
+  });
+
+  const csvContent = '\uFEFF' + headers.map(function (h) { return '"' + h + '"'; }).join(',') + '\n' + rows.join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const today = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = 'SIDAFI_Data_Barang_' + today + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Data barang berhasil diekspor ke CSV.');
+}
+
 async function loadBarang(page) {
   showTableLoading('#table-barang tbody', 10);
+  const filterKel = document.getElementById('filter-kelengkapan');
+  const filterVal = document.getElementById('filter-validasi');
   const payload = {
     page: page || 1,
     pageSize: 20,
@@ -526,32 +842,43 @@ async function loadBarang(page) {
     institusi: document.getElementById('filter-institusi').value,
     golongan_barang: document.getElementById('filter-golongan').value,
     kondisi: document.getElementById('filter-kondisi').value,
-    status: document.getElementById('filter-status').value
+    status: document.getElementById('filter-status').value,
+    kelengkapan: filterKel ? filterKel.value : '',
+    status_validasi: filterVal ? filterVal.value : ''
   };
-  const res = await api('listBarang', payload);
-  STATE.barangList = res.data;
-  STATE.barangPage = payload.page;
+  try {
+    const res = await api('listBarang', payload);
+    STATE.barangList = res.data;
+    STATE.barangPage = payload.page;
 
-  document.querySelector('#table-barang tbody').innerHTML = res.data.map(function (b) {
-    return '<tr>' +
-      '<td class="mono">' + b.nomor_inventaris + '</td>' +
-      '<td>' + b.jenis_barang + '<br><span style="color:#888;font-size:11.5px;">' + (b.spesifikasi || '') + '</span></td>' +
-      '<td>' + b.golongan_barang + '</td>' +
-      '<td>' + badge(roomInstitusi(b.kode_ruangan)) + '</td>' +
-      '<td>' + roomName(b.kode_ruangan) + '</td>' +
-      '<td>' + badge(b.kondisi) + '</td>' +
-      '<td>' + badge(b.status) + '</td>' +
-      '<td class="col-wide">' + b.tahun_perolehan + '</td>' +
-      '<td class="col-wide">' + rupiah(b.harga) + '</td>' +
-      '<td class="row-actions">' +
-        (STATE.user.role !== 'keuangan' ? '<button data-tooltip="Ubah" onclick="editBarang(\'' + b.nomor_inventaris + '\')">' + icon('edit') + '</button>' : '') +
-        '<button data-tooltip="Cetak KIB" onclick="printKIB(\'' + b.nomor_inventaris + '\')">' + icon('printer') + '</button>' +
-        (STATE.user.role === 'admin' ? '<button data-tooltip="Hapus Draf" onclick="hapusBarangDraft(\'' + b.nomor_inventaris + '\')">' + icon('trash') + '</button>' : '') +
-      '</td></tr>';
-  }).join('') || '<tr><td colspan="10" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
+    const hasActiveFilter = Boolean(
+      payload.search || payload.institusi || payload.golongan_barang ||
+      payload.kondisi || payload.status || payload.kelengkapan || payload.status_validasi
+    );
+    const btnReset = document.getElementById('btn-reset-barang-filter');
+    if (btnReset) {
+      btnReset.classList.toggle('hidden', !hasActiveFilter);
+    }
+    const resultCountEl = document.getElementById('barang-result-count');
+    if (resultCountEl) {
+      resultCountEl.innerHTML = 'Menampilkan <strong>' + res.data.length + '</strong> dari <strong>' + (res.total || 0) + '</strong> barang' + (hasActiveFilter ? ' <span style="color:var(--primary);font-weight:600;">(terfilter)</span>' : '');
+    }
 
-  const totalPages = Math.max(1, Math.ceil(res.total / res.pageSize));
-  document.getElementById('pagination-barang').innerHTML = buildPagination(payload.page, totalPages, 'loadBarang');
+    if (BARANG_SORT.col) {
+      sortBarangColumn(BARANG_SORT.col, true);
+    } else {
+      renderBarangTableRows();
+    }
+
+    const totalPages = Math.max(1, Math.ceil(res.total / res.pageSize));
+    document.getElementById('pagination-barang').innerHTML = buildPagination(payload.page, totalPages, 'loadBarang');
+  } catch (err) {
+    toast(err.message, true);
+    const tbody = document.querySelector('#table-barang tbody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#ef4444;padding:24px;">Gagal memuat data barang: ' + escapeHtml(err.message) + ' <br><button type="button" class="btn btn-sm btn-outline" style="margin-top:8px;" onclick="loadBarang(' + (page || 1) + ')">Coba Lagi</button></td></tr>';
+    }
+  }
 }
 
 // Komponen pagination ringkas: tombol Prev/Next + nomor halaman terbatas
@@ -582,9 +909,12 @@ function buildPagination(current, total, fnName) {
   html += btn(current < total ? current + 1 : null, 'Berikutnya ›', 'pg-nav');
   return html;
 }
-['filter-search', 'filter-institusi', 'filter-golongan', 'filter-kondisi', 'filter-status'].forEach(function (id) {
-  document.getElementById(id).addEventListener('input', function () { loadBarang(1); });
-  document.getElementById(id).addEventListener('change', function () { loadBarang(1); });
+['filter-search', 'filter-institusi', 'filter-golongan', 'filter-kondisi', 'filter-status', 'filter-kelengkapan', 'filter-validasi'].forEach(function (id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('input', function () { loadBarang(1); });
+    el.addEventListener('change', function () { loadBarang(1); });
+  }
 });
 
 /* ==============================================================
@@ -859,7 +1189,10 @@ async function loadPeminjaman() {
       '<td class="col-wide">' + roomName(p.ruangan_tujuan) + '</td>' +
       '<td class="col-wide">' + fmtDate(p.rencana_kembali) + '</td>' +
       '<td class="col-wide">' + badge(p.status) + '</td>' +
-      '<td class="row-actions"><button data-tooltip="Detail" onclick="detailPeminjaman(\'' + p.id_pinjam + '\')">' + icon('eye') + '</button></td></tr>';
+      '<td class="row-actions">' +
+        '<button data-tooltip="Detail" onclick="detailPeminjaman(\'' + p.id_pinjam + '\')">' + icon('eye') + '</button>' +
+        '<button data-tooltip="Cetak Surat Bukti Pinjam" onclick="printSuratPeminjaman(\'' + p.id_pinjam + '\')">' + icon('printer') + '</button>' +
+      '</td></tr>';
   }).join('') || '<tr><td colspan="8" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
@@ -885,7 +1218,10 @@ function detailPeminjaman(id) {
   const detailHtml = '<div class="detail-list">' + rows.map(function (r) {
     return '<div class="detail-row"><span class="dl-label">' + r[0] + '</span><span class="dl-value">' + r[1] + '</span></div>';
   }).join('') + '</div>' +
-  (p.status === 'dipinjam' && STATE.user.role !== 'keuangan' ? '<div class="modal-footer"><button class="btn-primary" onclick="closeModal(); kembalikanPinjam(\'' + p.id_pinjam + '\')">' + iconLabel('undo', 'Kembalikan Barang') + '</button></div>' : '');
+  '<div class="modal-footer">' +
+    '<button class="btn-secondary" onclick="printSuratPeminjaman(\'' + p.id_pinjam + '\')">' + iconLabel('printer', 'Cetak Surat Bukti Pinjam') + '</button>' +
+    (p.status === 'dipinjam' && STATE.user.role !== 'keuangan' ? '<button class="btn-primary" onclick="closeModal(); kembalikanPinjam(\'' + p.id_pinjam + '\')">' + iconLabel('undo', 'Kembalikan Barang') + '</button>' : '') +
+  '</div>';
   openModal('Detail Peminjaman', detailHtml);
 }
 
@@ -1056,7 +1392,7 @@ document.getElementById('btn-new-perawatan').addEventListener('click', function 
     '<label>Nomor Inventaris<input required id="w-kode" placeholder="02.03.13.2023.001"></label>' +
     '<label>Jenis Perawatan<input required id="w-jenis" placeholder="Servis rutin, pembersihan, dll."></label>' +
     '<label>Pelaksana<input id="w-pelaksana"></label>' +
-    '<label>Biaya (Rp)<input type="number" id="w-biaya" value="0"></label>' +
+    '<label>Biaya (Rp)<input id="w-biaya" type="text" inputmode="numeric" value="0"></label>' +
     '<label>Kondisi Setelah Perawatan<select id="w-kondisi">' +
     '<option value="">-- tidak berubah --</option><option value="baik">Baik</option>' +
     '<option value="rusak ringan">Rusak Ringan</option></select></label>' +
@@ -1064,6 +1400,7 @@ document.getElementById('btn-new-perawatan').addEventListener('click', function 
     '<div class="modal-footer"><button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
     '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Simpan') + '</button></div></form>');
   attachNomorInventarisMask(document.getElementById('w-kode'));
+  attachRupiahMask(document.getElementById('w-biaya'));
 
   document.getElementById('form-rawat').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -1072,7 +1409,7 @@ document.getElementById('btn-new-perawatan').addEventListener('click', function 
         nomor_inventaris: document.getElementById('w-kode').value,
         jenis_perawatan: document.getElementById('w-jenis').value,
         pelaksana: document.getElementById('w-pelaksana').value,
-        biaya: document.getElementById('w-biaya').value,
+        biaya: rawNumber(document.getElementById('w-biaya')),
         kondisi_setelah: document.getElementById('w-kondisi').value,
         keterangan: document.getElementById('w-ket').value
       });
@@ -1097,7 +1434,10 @@ async function loadPenghapusan() {
       '<td class="col-wide">' + p.diusulkan_oleh + '</td>' +
       '<td class="col-wide">' + (p.disetujui_oleh || '-') + '</td>' +
       '<td>' + badge(p.status) + '</td>' +
-      '<td class="row-actions"><button data-tooltip="Detail" onclick="detailPenghapusan(\'' + p.id_hapus + '\')">' + icon('eye') + '</button></td></tr>';
+      '<td class="row-actions">' +
+        '<button data-tooltip="Detail" onclick="detailPenghapusan(\'' + p.id_hapus + '\')">' + icon('eye') + '</button>' +
+        (p.status === 'disetujui' ? '<button data-tooltip="Cetak Berita Acara Pemusnahan (BAP)" onclick="printBAP(\'' + p.id_hapus + '\')">' + icon('printer') + '</button>' : '') +
+      '</td></tr>';
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
 
@@ -1121,14 +1461,20 @@ function detailPenghapusan(id) {
     ['Nomor BA', p.nomor_ba || '-'],
     ['Keterangan', p.keterangan || '-']
   ];
-  const detailHtml = '<div class="detail-list">' + rows.map(function (r) {
-    return '<div class="detail-row"><span class="dl-label">' + r[0] + '</span><span class="dl-value">' + r[1] + '</span></div>';
-  }).join('') + '</div>' +
-  (p.status === 'diusulkan' && isApprover ?
-    '<div class="modal-footer">' +
+  let footerHtml = '';
+  if (p.status === 'diusulkan' && isApprover) {
+    footerHtml = '<div class="modal-footer">' +
       '<button class="btn-secondary" onclick="closeModal(); putuskanHapus(\'' + p.id_hapus + '\',\'ditolak\')">' + iconLabel('xCircle', 'Tolak') + '</button>' +
       '<button class="btn-primary" onclick="closeModal(); putuskanHapus(\'' + p.id_hapus + '\',\'disetujui\')">' + iconLabel('check', 'Setujui') + '</button>' +
-    '</div>' : '');
+    '</div>';
+  } else if (p.status === 'disetujui') {
+    footerHtml = '<div class="modal-footer">' +
+      '<button class="btn-primary" onclick="printBAP(\'' + p.id_hapus + '\')">' + iconLabel('printer', 'Cetak Berita Acara Pemusnahan (BAP)') + '</button>' +
+    '</div>';
+  }
+  const detailHtml = '<div class="detail-list">' + rows.map(function (r) {
+    return '<div class="detail-row"><span class="dl-label">' + r[0] + '</span><span class="dl-value">' + r[1] + '</span></div>';
+  }).join('') + '</div>' + footerHtml;
   openModal('Detail Penghapusan', detailHtml);
 }
 
@@ -1181,16 +1527,33 @@ function putuskanHapus(id, status) {
 // ---------------- RUANGAN ----------------
 async function loadRuangan() {
   showTableLoading('#table-ruangan tbody', 7);
-  const res = await api('listRuangan', {});
-  STATE.ruanganList = res.data;
+  try {
+    const res = await api('listRuangan', {});
+    STATE.ruanganList = res.data;
 
-  const filterInst = document.getElementById('filter-ruangan-institusi');
-  if (!filterInst.dataset.filled) {
-    filterInst.innerHTML = '<option value="">Semua Institusi</option>' +
-      INSTITUSI_LIST.map(function (i) { return '<option value="' + i + '">' + i + '</option>'; }).join('');
-    filterInst.dataset.filled = '1';
+    const filterInst = document.getElementById('filter-ruangan-institusi');
+    if (!filterInst.dataset.filled) {
+      filterInst.innerHTML = '<option value="">Semua Institusi</option>' +
+        INSTITUSI_LIST.map(function (i) { return '<option value="' + i + '">' + i + '</option>'; }).join('');
+      filterInst.dataset.filled = '1';
+    }
+    renderRuanganTable();
+  } catch (err) {
+    toast(err.message, true);
+    const tbody = document.querySelector('#table-ruangan tbody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444;padding:20px;">Gagal memuat data ruangan: ' + escapeHtml(err.message) + '</td></tr>';
+    }
   }
-  renderRuanganTable();
+}
+
+function openDetailRuangan(kode) {
+  switchView('ruangan');
+  const input = document.getElementById('filter-ruangan-search');
+  if (input) {
+    input.value = kode;
+    renderRuanganTable();
+  }
 }
 
 function renderRuanganTable() {
@@ -1207,7 +1570,12 @@ function renderRuanganTable() {
   document.querySelector('#table-ruangan tbody').innerHTML = filtered.map(function (r) {
     return '<tr><td class="mono">' + r.kode_ruangan + '</td><td>' + badge(r.institusi) + '</td><td>' + (r.area || '-') + '</td>' +
       '<td>' + (r.gedung || '-') + '</td><td>' + r.nama_ruangan + '</td><td>' + (r.penanggung_jawab || '-') + '</td>' +
-      '<td class="row-actions"><button data-tooltip="Ubah" onclick="editRuangan(\'' + r.kode_ruangan + '\')">' + icon('edit') + '</button> <button data-tooltip="Cetak KIR" onclick="printKIR(\'' + r.kode_ruangan + '\')">' + icon('printer') + '</button></td></tr>';
+      '<td class="row-actions">' +
+        (STATE.user.role !== 'keuangan' ? '<button data-tooltip="Edit KIR (Detail Barang Ruangan)" onclick="openKirEditor(\'' + r.kode_ruangan + '\')">' + icon('clipboard') + '</button> ' : '') +
+        (STATE.user.role === 'admin' ? '<button data-tooltip="Ubah Data Ruangan" onclick="editRuangan(\'' + r.kode_ruangan + '\')">' + icon('edit') + '</button> ' : '') +
+        '<button data-tooltip="Cetak KIR" onclick="printKIR(\'' + r.kode_ruangan + '\')">' + icon('printer') + '</button>' +
+        (FEATURE_LABEL_STICKER ? ' <button data-tooltip="Cetak Semua Stiker Ruangan" onclick="printBatchLabelSticker(\'' + r.kode_ruangan + '\')">' + icon('tag') + '</button>' : '') +
+      '</td></tr>';
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Tidak ada ruangan yang cocok.</td></tr>';
 }
 
@@ -1313,6 +1681,458 @@ async function printKIR(kode) {
         sigBlock('Mengetahui,<br>' + (PIMPINAN_JABATAN[institusiRuangan] || 'Pimpinan'), pimpinanNama(institusiRuangan)) +
         sigBlock('Penanggung Jawab', penanggungJawabNama(institusiRuangan)) +
       '</div></div></div>';
+    showPrintPreview(html, 'portrait');
+  } catch (err) { toast(err.message, true); }
+}
+
+// ============================================================
+// MODUL EDITOR DETAIL BARANG RUANGAN (KARTU INVENTARIS RUANGAN / KIR)
+// Memungkinkan pengeditan spesifikasi, kondisi, harga, sumber dana,
+// status, dan catatan seluruh barang dalam satu ruangan sekaligus.
+// ============================================================
+
+function openSelectRoomForKirEditor() {
+  const options = (STATE.ruanganList || []).map(function (r) {
+    return '<option value="' + r.kode_ruangan + '">' + r.kode_ruangan + ' — ' + r.nama_ruangan + ' (' + r.institusi + ')</option>';
+  }).join('');
+
+  const html = '<div style="display:flex;flex-direction:column;gap:14px;">' +
+    '<p style="margin:0;font-size:13.5px;color:#475569;">Pilih ruangan yang ingin Anda tinjau dan edit detail barangnya dalam format Kartu Inventaris Ruangan (KIR):</p>' +
+    '<label style="font-weight:600;font-size:13px;display:block;">Ruangan Target' +
+      '<select id="select-kir-target-room" style="margin-top:6px;padding:9px 12px;font-size:13.5px;width:100%;border:1px solid var(--border);border-radius:var(--radius);">' + options + '</select>' +
+    '</label>' +
+    '<div class="modal-footer" style="margin-top:8px;">' +
+      '<button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
+      '<button type="button" class="btn-primary" onclick="proceedToKirEditor()">Buka Editor KIR Ruangan</button>' +
+    '</div>' +
+  '</div>';
+
+  openModal('Pilih Ruangan untuk Edit KIR', html);
+}
+
+function proceedToKirEditor() {
+  const sel = document.getElementById('select-kir-target-room');
+  if (!sel || !sel.value) return;
+  const kode = sel.value;
+  closeModal();
+  openKirEditor(kode);
+}
+
+async function openKirEditor(kodeRuangan) {
+  try {
+    const ruangan = (STATE.ruanganList || []).find(function (r) { return r.kode_ruangan === kodeRuangan; });
+    const namaRuangan = ruangan ? ruangan.nama_ruangan : kodeRuangan;
+    const pjRuangan = ruangan ? (ruangan.penanggung_jawab || '-') : '-';
+    const instRuangan = ruangan ? (ruangan.institusi || '-') : '-';
+    const lokasiRuangan = ruangan ? [ruangan.area, ruangan.gedung].filter(Boolean).join(' • ') : '-';
+
+    openModal('Memuat KIR Ruangan...', '<div style="text-align:center;padding:40px;color:#64748b;">Mengambil data barang untuk ruangan <strong>' + escapeHtml(namaRuangan) + '</strong>...</div>', 'modal-xl');
+
+    const res = await api('listBarang', { kode_ruangan: kodeRuangan, pageSize: 9999, status: '' });
+    const items = (res.data || []).filter(function (b) { return b.status !== 'dihapus'; });
+
+    // Analisis kelengkapan data & status validasi 3 bulan di ruangan ini
+    let missingMerkCount = 0;
+    let missingHargaCount = 0;
+    let incompleteTotal = 0;
+    let overdueInRoom = 0;
+
+    items.forEach(function (b) {
+      const noMerk = !b.spesifikasi || String(b.spesifikasi).trim() === '' || String(b.spesifikasi).trim() === '-';
+      const noHarga = !b.harga || Number(b.harga) === 0;
+      if (noMerk) missingMerkCount++;
+      if (noHarga) missingHargaCount++;
+      if (noMerk || noHarga) incompleteTotal++;
+      if (b.is_overdue) overdueInRoom++;
+    });
+
+    let auditBadgeHtml = '';
+    if (incompleteTotal > 0) {
+      auditBadgeHtml = '<div class="kir-audit-badge alert" id="kir-audit-badge-status">' + icon('alertTriangle') +
+        ' <span>⚠️ ' + incompleteTotal + ' dari ' + items.length + ' barang belum lengkap (' +
+        missingMerkCount + ' tanpa merk, ' + missingHargaCount + ' tanpa harga)</span></div>';
+    } else {
+      auditBadgeHtml = '<div class="kir-audit-badge good" id="kir-audit-badge-status">' + icon('check') +
+        ' <span>✅ Semua data barang (' + items.length + ' unit) lengkap!</span></div>';
+    }
+
+    if (items.length === 0) {
+      const emptyHtml = '<div class="kir-editor-wrap">' +
+        '<div class="kir-header-card">' +
+          '<div class="kir-header-info">' +
+            '<div class="kir-header-title">' + escapeHtml(namaRuangan) + ' <span class="mono" style="font-size:12px;color:#64748b;">(' + escapeHtml(kodeRuangan) + ')</span></div>' +
+            '<div class="kir-header-meta">' +
+              '<span><strong>Institusi:</strong> ' + escapeHtml(instRuangan) + '</span>' +
+              '<span><strong>Penanggung Jawab:</strong> ' + escapeHtml(pjRuangan) + '</span>' +
+              '<span><strong>Lokasi:</strong> ' + escapeHtml(lokasiRuangan) + '</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="text-align:center;padding:50px 20px;color:#64748b;background:#f8fafc;border-radius:var(--radius);border:1px dashed #cbd5e1;margin-top:14px;">' +
+          '<p style="font-size:15px;font-weight:600;margin:0 0 6px;">Belum Ada Barang di Ruangan Ini</p>' +
+          '<p style="font-size:13px;margin:0 0 16px;">Ruangan ini belum memiliki inventaris aset terdaftar.</p>' +
+          '<button type="button" class="btn-secondary" onclick="closeModal()">Tutup</button>' +
+        '</div>' +
+      '</div>';
+      openModal('Kartu Inventaris Ruangan (KIR) — ' + namaRuangan, emptyHtml, 'modal-xl');
+      return;
+    }
+
+    const rowsHtml = items.map(function (b, idx) {
+      const noMerk = !b.spesifikasi || String(b.spesifikasi).trim() === '' || String(b.spesifikasi).trim() === '-';
+      const noHarga = !b.harga || Number(b.harga) === 0;
+      const hasMissing = noMerk || noHarga;
+
+      const kondisiOpts = ['baik', 'rusak ringan', 'rusak berat'].map(function (k) {
+        const lbl = k === 'baik' ? 'Baik' : (k === 'rusak ringan' ? 'Rusak Ringan' : 'Rusak Berat');
+        return '<option value="' + k + '"' + ((b.kondisi || 'baik') === k ? ' selected' : '') + '>' + lbl + '</option>';
+      }).join('');
+
+      const statusOpts = ['tersedia', 'dipinjam', 'rusak', 'diusulkan_hapus'].map(function (st) {
+        const lbl = st === 'tersedia' ? 'Tersedia' : (st === 'dipinjam' ? 'Dipinjam' : (st === 'rusak' ? 'Rusak' : 'Diusulkan Hapus'));
+        return '<option value="' + st + '"' + ((b.status || 'tersedia') === st ? ' selected' : '') + '>' + lbl + '</option>';
+      }).join('');
+
+      return '<tr data-no-inv="' + b.nomor_inventaris + '" class="kir-row ' + (hasMissing ? 'has-missing' : '') + '">' +
+        '<td style="text-align:center;color:#64748b;font-size:12px;width:35px;">' + (idx + 1) + '</td>' +
+        '<td class="mono" style="font-size:11.5px;white-space:nowrap;font-weight:600;width:145px;">' + b.nomor_inventaris + '</td>' +
+        '<td style="width:160px;"><strong>' + escapeHtml(b.jenis_barang) + '</strong>' +
+          (b.golongan_barang ? '<br><span style="font-size:10.5px;color:#64748b;">' + escapeHtml(b.golongan_barang) + '</span>' : '') +
+        '</td>' +
+        '<td>' +
+          '<input type="text" class="kir-input kir-input-spek ' + (noMerk ? 'empty-highlight' : '') + '" ' +
+            'value="' + (b.spesifikasi ? escapeHtml(b.spesifikasi) : '') + '" ' +
+            'placeholder="⚠️ Masukkan merk / spek..." ' +
+            'oninput="onKirInputChanged(this, \'spek\')">' +
+        '</td>' +
+        '<td style="width:125px;">' +
+          '<select class="kir-select kir-select-kondisi">' + kondisiOpts + '</select>' +
+        '</td>' +
+        '<td style="width:130px;">' +
+          '<input type="number" class="kir-input kir-input-harga ' + (noHarga ? 'empty-highlight' : '') + '" ' +
+            'value="' + (b.harga ? Number(b.harga) : '') + '" ' +
+            'placeholder="⚠️ 0" min="0" ' +
+            'oninput="onKirInputChanged(this, \'harga\')">' +
+        '</td>' +
+        '<td style="width:110px;">' +
+          '<input type="text" class="kir-input kir-input-sumber" ' +
+            'value="' + (b.sumber_dana ? escapeHtml(b.sumber_dana) : '') + '" ' +
+            'placeholder="Sumber dana">' +
+        '</td>' +
+        '<td style="width:120px;">' +
+          '<select class="kir-select kir-select-status">' + statusOpts + '</select>' +
+        '</td>' +
+        '<td style="width:130px;">' +
+          '<input type="text" class="kir-input kir-input-ket" ' +
+            'value="' + (b.keterangan ? escapeHtml(b.keterangan) : '') + '" ' +
+            'placeholder="Catatan">' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+
+    const bodyHtml = '<div class="kir-editor-wrap">' +
+      '<div class="kir-header-card">' +
+        '<div class="kir-header-info">' +
+          '<div class="kir-header-title">' + escapeHtml(namaRuangan) + ' <span class="mono" style="font-size:12px;color:#64748b;">(' + escapeHtml(kodeRuangan) + ')</span></div>' +
+          '<div class="kir-header-meta">' +
+            '<span><strong>Institusi:</strong> ' + escapeHtml(instRuangan) + '</span>' +
+            '<span><strong>Penanggung Jawab:</strong> ' + escapeHtml(pjRuangan) + '</span>' +
+            '<span><strong>Total Barang:</strong> ' + items.length + ' item</span>' +
+            '<span><strong>Siklus 3 Bulan:</strong> ' +
+              (overdueInRoom > 0
+                ? '<span class="badge badge-overdue" style="font-size:11px;">⏰ ' + overdueInRoom + ' Perlu Validasi</span>'
+                : '<span class="badge badge-valid" style="font-size:11px;">✅ Tervalidasi</span>') +
+            '</span>' +
+          '</div>' +
+        '</div>' +
+        auditBadgeHtml +
+      '</div>' +
+
+      '<div class="kir-toolbar">' +
+        '<label>🔍 Filter Cepat:' +
+          '<input type="text" id="kir-table-search" placeholder="Cari barang / nomor..." oninput="filterKirTable(this.value)">' +
+        '</label>' +
+        '<div style="border-left:1px solid #cbd5e1;height:24px;margin:0 4px;"></div>' +
+        '<label>Set Semua Kondisi:' +
+          '<select id="kir-bulk-kondisi">' +
+            '<option value="baik">Baik</option>' +
+            '<option value="rusak ringan">Rusak Ringan</option>' +
+            '<option value="rusak berat">Rusak Berat</option>' +
+          '</select>' +
+          '<button type="button" class="btn-sm btn-secondary" onclick="applyBatchKirCondition()">Terapkan</button>' +
+        '</label>' +
+        '<div style="border-left:1px solid #cbd5e1;height:24px;margin:0 4px;"></div>' +
+        '<label>' +
+          '<input type="checkbox" id="kir-filter-missing-only" onchange="toggleKirMissingOnly(this.checked)" style="width:auto!important;margin-right:4px!important;">' +
+          'Hanya tampilkan yang belum lengkap' +
+        '</label>' +
+        '<div style="border-left:1px solid #cbd5e1;height:24px;margin:0 4px;"></div>' +
+        '<button type="button" class="btn-sm btn-primary" onclick="validasiSemuaBarangRuangan(\'' + kodeRuangan + '\')" title="Tandai seluruh barang di ruangan ini telah diperiksa fisik dan reset siklus 3 bulan">' +
+          icon('check') + ' Validasi Ruangan Ini (Reset 3 Bulan)' +
+        '</button>' +
+      '</div>' +
+
+      '<div class="kir-table-wrap">' +
+        '<table class="kir-table" id="table-kir-editor">' +
+          '<thead><tr>' +
+            '<th>No.</th>' +
+            '<th>No. Inventaris</th>' +
+            '<th>Jenis Barang</th>' +
+            '<th>Merk / Spesifikasi</th>' +
+            '<th>Kondisi</th>' +
+            '<th>Harga (Rp)</th>' +
+            '<th>Sumber Dana</th>' +
+            '<th>Status</th>' +
+            '<th>Keterangan</th>' +
+          '</tr></thead>' +
+          '<tbody>' + rowsHtml + '</tbody>' +
+        '</table>' +
+      '</div>' +
+
+      '<div class="kir-actions-bar" style="justify-content:space-between;align-items:center;">' +
+        '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#334155;margin:0;cursor:pointer;">' +
+          '<input type="checkbox" id="kir-check-validate-all" checked style="width:auto!important;margin:0;">' +
+          ' Sekaligus tandai divalidasi hari ini (reset pengingat 3 bulan)' +
+        '</label>' +
+        '<div style="display:flex;gap:8px;">' +
+          '<button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
+          '<button type="button" class="btn-primary" id="btn-save-kir" onclick="saveKirChanges(\'' + kodeRuangan + '\')">' +
+            icon('check') + ' 💾 Simpan Perubahan KIR (' + items.length + ' Barang)' +
+          '</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+    openModal('Kartu Inventaris Ruangan (KIR) — ' + namaRuangan, bodyHtml, 'modal-xl');
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+function onKirInputChanged(el, type) {
+  const val = (el.value || '').trim();
+  const row = el.closest('tr');
+  if (type === 'spek') {
+    if (val === '' || val === '-') {
+      el.classList.add('empty-highlight');
+    } else {
+      el.classList.remove('empty-highlight');
+    }
+  } else if (type === 'harga') {
+    if (val === '' || Number(val) === 0) {
+      el.classList.add('empty-highlight');
+    } else {
+      el.classList.remove('empty-highlight');
+    }
+  }
+
+  // Update status missing pada baris
+  if (row) {
+    const spekEl = row.querySelector('.kir-input-spek');
+    const hargaEl = row.querySelector('.kir-input-harga');
+    const isSpekMissing = spekEl ? (spekEl.value.trim() === '' || spekEl.value.trim() === '-') : false;
+    const isHargaMissing = hargaEl ? (hargaEl.value.trim() === '' || Number(hargaEl.value) === 0) : false;
+    if (isSpekMissing || isHargaMissing) {
+      row.classList.add('has-missing');
+    } else {
+      row.classList.remove('has-missing');
+    }
+  }
+}
+
+function filterKirTable(query) {
+  query = (query || '').toLowerCase().trim();
+  const missingOnly = document.getElementById('kir-filter-missing-only') && document.getElementById('kir-filter-missing-only').checked;
+  const rows = document.querySelectorAll('#table-kir-editor tbody tr');
+  rows.forEach(function (row) {
+    const text = row.textContent.toLowerCase();
+    const isMissing = row.classList.contains('has-missing');
+    const matchQuery = !query || text.indexOf(query) !== -1;
+    const matchMissing = !missingOnly || isMissing;
+    row.style.display = (matchQuery && matchMissing) ? '' : 'none';
+  });
+}
+
+function toggleKirMissingOnly(checked) {
+  const query = (document.getElementById('kir-table-search') ? document.getElementById('kir-table-search').value : '').toLowerCase().trim();
+  const rows = document.querySelectorAll('#table-kir-editor tbody tr');
+  rows.forEach(function (row) {
+    const text = row.textContent.toLowerCase();
+    const isMissing = row.classList.contains('has-missing');
+    const matchQuery = !query || text.indexOf(query) !== -1;
+    const matchMissing = !checked || isMissing;
+    row.style.display = (matchQuery && matchMissing) ? '' : 'none';
+  });
+}
+
+function applyBatchKirCondition() {
+  const selVal = document.getElementById('kir-bulk-kondisi').value;
+  const rows = document.querySelectorAll('#table-kir-editor tbody tr');
+  let count = 0;
+  rows.forEach(function (row) {
+    if (row.style.display !== 'none') {
+      const select = row.querySelector('.kir-select-kondisi');
+      if (select) {
+        select.value = selVal;
+        count++;
+      }
+    }
+  });
+  toast('Kondisi ' + count + ' barang berhasil diubah menjadi: ' + selVal);
+}
+
+async function saveKirChanges(kodeRuangan) {
+  const saveBtn = document.getElementById('btn-save-kir');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = 'Menyimpan perubahan...';
+  }
+
+  try {
+    const rows = document.querySelectorAll('#table-kir-editor tbody tr');
+    const items = [];
+    rows.forEach(function (row) {
+      const noInv = row.getAttribute('data-no-inv');
+      const spek = row.querySelector('.kir-input-spek') ? row.querySelector('.kir-input-spek').value.trim() : '';
+      const kondisi = row.querySelector('.kir-select-kondisi') ? row.querySelector('.kir-select-kondisi').value : 'baik';
+      const harga = row.querySelector('.kir-input-harga') ? (Number(row.querySelector('.kir-input-harga').value) || 0) : 0;
+      const sumber = row.querySelector('.kir-input-sumber') ? row.querySelector('.kir-input-sumber').value.trim() : '';
+      const status = row.querySelector('.kir-select-status') ? row.querySelector('.kir-select-status').value : 'tersedia';
+      const ket = row.querySelector('.kir-input-ket') ? row.querySelector('.kir-input-ket').value.trim() : '';
+
+      items.push({
+        nomor_inventaris: noInv,
+        spesifikasi: spek,
+        kondisi: kondisi,
+        harga: harga,
+        sumber_dana: sumber,
+        status: status,
+        keterangan: ket
+      });
+    });
+
+    const validateAll = document.getElementById('kir-check-validate-all') && document.getElementById('kir-check-validate-all').checked;
+    const res = await api('batchUpdateBarang', { kode_ruangan: kodeRuangan, items: items, validasi_ulang: validateAll });
+    toast('✅ ' + (res.message || 'Perubahan data KIR berhasil disimpan!'));
+    closeModal();
+
+    // Refresh data tampilan jika halaman terkait sedang dibuka
+    refreshBootstrapInBackground();
+    loadDashboard();
+    if (!document.getElementById('section-barang').classList.contains('hidden')) {
+      loadBarang(STATE.barangPage || 1);
+    }
+    if (!document.getElementById('section-ruangan').classList.contains('hidden')) {
+      renderRuanganTable();
+    }
+  } catch (err) {
+    toast('Gagal menyimpan KIR: ' + err.message, true);
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = icon('check') + ' 💾 Coba Simpan Lagi';
+    }
+  }
+}
+
+// ---------------- VALIDASI FISIK INVENTARIS BERKALA (SIKLUS 3 BULAN) ----------------
+async function validasiBarangSingle(nomorInventaris) {
+  if (!confirm('Validasi fisik barang ' + nomorInventaris + ' bahwa kondisinya sesuai dan reset siklus pengingat 3 bulan?')) return;
+  try {
+    const res = await api('validasiBarang', { nomor_inventaris: nomorInventaris });
+    toast('✅ ' + (res.message || 'Barang berhasil divalidasi!'));
+    loadBarang(STATE.barangPage || 1);
+    loadDashboard();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+async function validasiSemuaBarangRuangan(kodeRuangan) {
+  const rName = roomName(kodeRuangan);
+  if (!confirm('Tandai seluruh barang di ruangan ' + rName + ' telah diperiksa/divalidasi hari ini (reset siklus 3 bulan)?')) return;
+  try {
+    const res = await api('validasiBarang', { kode_ruangan: kodeRuangan });
+    toast('✅ ' + (res.message || 'Seluruh barang di ruangan berhasil divalidasi!'));
+    openKirEditor(kodeRuangan);
+    loadDashboard();
+    if (!document.getElementById('section-barang').classList.contains('hidden')) {
+      loadBarang(STATE.barangPage || 1);
+    }
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+// ============================================================
+// MODUL CETAK STIKER LABEL INVENTARIS DENGAN QR CODE (DIBEKUKAN SEMENTARA)
+// Siap digunakan: aktifkan dengan mengubah FEATURE_LABEL_STICKER = true
+// ============================================================
+function buildSingleStickerHtml(b) {
+  const inst = b.institusi || roomInstitusi(b.kode_ruangan) || 'SMP';
+  const orgName = inst === 'MA' ? 'MA DARUL FIKRI SIDOARJO' : (inst === 'Pesantren' ? 'PESANTREN DARUL FIKRI' : 'SMP IT DARUL FIKRI');
+  const qrData = encodeURIComponent('SIDAFI:' + b.nomor_inventaris + '|' + b.jenis_barang + '|' + roomName(b.kode_ruangan));
+  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=' + qrData;
+  const qrFallback = 'https://quickchart.io/qr?size=140&text=' + qrData;
+
+  return '<div class="sticker-card">' +
+    '<div class="sticker-header">' +
+      '<img src="assets/logo-dafi.png" class="sticker-logo" alt="DAFI">' +
+      '<div class="sticker-head-text">' +
+        '<div class="sticker-org">' + orgName + '</div>' +
+        '<div class="sticker-suborg">INVENTARIS &amp; ASET SARPRAS</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="sticker-body">' +
+      '<div class="sticker-qr-wrap">' +
+        '<img src="' + qrUrl + '" class="sticker-qr" alt="QR" onerror="this.src=\'' + qrFallback + '\'">' +
+      '</div>' +
+      '<div class="sticker-meta">' +
+        '<div class="sticker-no">' + b.nomor_inventaris + '</div>' +
+        '<div class="sticker-name">' + b.jenis_barang + '</div>' +
+        '<div class="sticker-spec">' + (b.spesifikasi || '-') + '</div>' +
+        '<div class="sticker-loc">Ruang: ' + roomName(b.kode_ruangan) + '</div>' +
+        '<div class="sticker-year">Tahun: ' + (b.tahun_perolehan || '-') + ' • ' + (b.sumber_dana || 'Yayasan') + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="sticker-footer">Dilarang Memindahkan Tanpa Izin Waka Sarpras</div>' +
+  '</div>';
+}
+
+async function printLabelSticker(nomorInventaris) {
+  try {
+    const res = await api('getBarang', { nomor_inventaris: nomorInventaris });
+    const b = res.data;
+    const stickerHtml = buildSingleStickerHtml(b);
+    const html = '<div class="print-page portrait" style="padding:15mm;min-height:auto;box-shadow:none;">' +
+      '<div class="no-print" style="margin-bottom:15px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:12px;color:#991b1b;display:flex;align-items:center;justify-content:space-between;">' +
+        '<span><strong>Pratinjau Label Stiker Tunggal:</strong> Siap dicetak pada kertas label stiker.</span>' +
+      '</div>' +
+      '<div class="sticker-grid-single">' + stickerHtml + '</div>' +
+    '</div>';
+    showPrintPreview(html, 'portrait');
+  } catch (err) { toast(err.message, true); }
+}
+
+async function printBatchLabelSticker(kodeRuangan) {
+  try {
+    const ruangan = STATE.ruanganList.find(function (r) { return r.kode_ruangan === kodeRuangan; });
+    const res = await api('listBarang', { kode_ruangan: kodeRuangan, pageSize: 9999, status: '' });
+    const items = res.data.filter(function (b) { return b.status !== 'dihapus'; });
+    if (!items.length) {
+      toast('Tidak ada barang di ruangan ini untuk dicetak stikernya.', true);
+      return;
+    }
+
+    const stickersHtml = items.map(function (b) {
+      return buildSingleStickerHtml(b);
+    }).join('');
+
+    const html = '<div class="print-page portrait" style="padding:10mm 8mm;min-height:297mm;box-shadow:none;">' +
+      '<div class="no-print" style="margin-bottom:12px;padding:8px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1e40af;display:flex;align-items:center;justify-content:space-between;">' +
+        '<span><strong>Cetak Massal Label Ruangan:</strong> ' + (ruangan ? ruangan.nama_ruangan : kodeRuangan) + ' (' + items.length + ' label)</span>' +
+      '</div>' +
+      '<div class="sticker-grid-batch">' + stickersHtml + '</div>' +
+    '</div>';
     showPrintPreview(html, 'portrait');
   } catch (err) { toast(err.message, true); }
 }
@@ -1483,18 +2303,31 @@ function loadPengaturanForm() {
   document.getElementById('pg-ma-waka').value = STATE.pengaturan['MA.penanggungjawab_nama'] || '';
   document.getElementById('pg-pesantren-pimpinan').value = STATE.pengaturan['Pesantren.pimpinan_nama'] || '';
   document.getElementById('pg-pesantren-waka').value = STATE.pengaturan['Pesantren.penanggungjawab_nama'] || '';
+
+  const pgValAktif = document.getElementById('pg-validasi-aktif');
+  if (pgValAktif) {
+    pgValAktif.checked = STATE.pengaturan['validasi_pengingat_aktif'] !== '0';
+  }
+  const pgValSiklus = document.getElementById('pg-validasi-siklus');
+  if (pgValSiklus) {
+    pgValSiklus.value = STATE.pengaturan['validasi_siklus_bulan'] || '3';
+  }
 }
 
 document.getElementById('form-pengaturan').addEventListener('submit', async function (e) {
   e.preventDefault();
   try {
+    const pgValAktif = document.getElementById('pg-validasi-aktif');
+    const pgValSiklus = document.getElementById('pg-validasi-siklus');
     const payload = {
       'SMP.pimpinan_nama': document.getElementById('pg-smp-pimpinan').value,
       'SMP.penanggungjawab_nama': document.getElementById('pg-smp-waka').value,
       'MA.pimpinan_nama': document.getElementById('pg-ma-pimpinan').value,
       'MA.penanggungjawab_nama': document.getElementById('pg-ma-waka').value,
       'Pesantren.pimpinan_nama': document.getElementById('pg-pesantren-pimpinan').value,
-      'Pesantren.penanggungjawab_nama': document.getElementById('pg-pesantren-waka').value
+      'Pesantren.penanggungjawab_nama': document.getElementById('pg-pesantren-waka').value,
+      'validasi_pengingat_aktif': pgValAktif ? (pgValAktif.checked ? '1' : '0') : '1',
+      'validasi_siklus_bulan': pgValSiklus ? pgValSiklus.value : '3'
     };
     await api('savePengaturan', payload);
     STATE.pengaturan = Object.assign({}, STATE.pengaturan, payload);
@@ -1747,5 +2580,1094 @@ async function hapusBarangDraft(nomorInventaris) {
     await api('deleteBarangDraft', { nomor_inventaris: nomorInventaris });
     toast('Barang berhasil dihapus.');
     loadBarang(STATE.barangPage);
+  } catch (err) { toast(err.message, true); }
+}
+
+// ============================================================
+// COMMAND PALETTE (Ctrl+K Quick Find) & SHORTCUTS
+// ============================================================
+const CMD_ACTIONS = [
+  { type: 'nav', title: 'Dashboard Utama', desc: 'Ringkasan aset, status opname, dan peringatan', icon: 'home', action: function () { switchView('dashboard'); } },
+  { type: 'nav', title: 'Data Barang Inventaris', desc: 'Daftar semua inventaris, pencarian, dan cetak KIB', icon: 'box', action: function () { switchView('barang'); } },
+  { type: 'nav', title: 'Peminjaman Barang', desc: 'Kelola peminjaman dan pengembalian aset', icon: 'swap', action: function () { switchView('peminjaman'); } },
+  { type: 'nav', title: 'Laporan Kerusakan', desc: 'Catatan barang rusak dan usulan perbaikan', icon: 'alertTriangle', action: function () { switchView('kerusakan'); } },
+  { type: 'nav', title: 'Jadwal Perawatan', desc: 'Perawatan berkala inventaris sekolah', icon: 'wrench', action: function () { switchView('perawatan'); } },
+  { type: 'nav', title: 'Penghapusan Aset', desc: 'Usulan dan berita acara penghapusan barang', icon: 'trash', action: function () { switchView('penghapusan'); } },
+  { type: 'nav', title: 'Stok Habis Pakai', desc: 'Manajemen barang habis pakai dan logistik', icon: 'archive', action: function () { switchView('stok'); } },
+  { type: 'nav', title: 'Daftar Ruangan & KIR', desc: 'Kartu Inventaris Ruangan (KIR) dan cetak stiker', icon: 'building', action: function () { switchView('ruangan'); } },
+  { type: 'nav', title: 'Pengaturan Cetak & Validasi', desc: 'Konfigurasi pimpinan, waka sarpras, dan siklus validasi', icon: 'sliders', action: function () { switchView('pengaturan'); } },
+  { type: 'action', title: 'Tambah Barang Baru', desc: 'Formulir input aset inventaris baru', icon: 'plus', action: function () {
+    switchView('barang');
+    const btn = document.getElementById('btn-new-barang');
+    if (btn) btn.click();
+  } },
+  { type: 'action', title: 'Validasi Triwulan (Filter Perlu Cek)', desc: 'Tampilkan barang yang siklus validasinya > 3 bulan', icon: 'check', action: function () {
+    filterBarangPerluValidasi();
+  } },
+  { type: 'action', title: 'Cari Data Belum Lengkap', desc: 'Tampilkan barang tanpa spesifikasi/merk atau harga Rp 0', icon: 'alertTriangle', action: function () {
+    filterBarangIncomplete();
+  } },
+  { type: 'action', title: 'Ekspor Data Barang ke CSV', desc: 'Unduh data tabel inventaris saat ini ke format CSV/Excel', icon: 'archive', action: function () {
+    exportBarangCsv();
+  } },
+  { type: 'action', title: 'Impor Data Barang (CSV / Excel)', desc: 'Wizard migrasi data inventaris dari spreadsheet lama', icon: 'clipboard', action: function () {
+    openImportWizard();
+  } },
+  { type: 'action', title: 'Pusat Dokumen & Surat Sarpras', desc: 'Cetak SPPB, BAST, BAP, Bukti Peminjaman & BA Opname', icon: 'printer', action: function () {
+    openPusatDokumenModal();
+  } },
+  { type: 'action', title: 'Buat Surat Pengadaan (SPPB)', desc: 'Surat permohonan pengadaan barang baru & disposisi pimpinan', icon: 'edit', action: function () {
+    openModalSPPB();
+  } },
+  { type: 'action', title: 'Buat Berita Acara Serah Terima (BAST)', desc: 'Berita acara penerimaan barang baru atau hibah donatur', icon: 'check', action: function () {
+    openModalBAST();
+  } },
+  { type: 'action', title: 'Cetak Berita Acara Pemusnahan (BAP)', desc: 'Dokumen berita acara penghapusan dan pemusnahan aset disetujui', icon: 'trash', action: function () {
+    openBAPSelector();
+  } },
+  { type: 'action', title: 'Cetak Berita Acara Stock Opname', desc: 'Laporan resmi hasil verifikasi fisik inventaris triwulanan', icon: 'printer', action: function () {
+    printBeritaAcaraOpname();
+  } }
+];
+
+let selectedCmdIndex = 0;
+
+function openCommandPalette() {
+  const overlay = document.getElementById('cmd-palette-overlay');
+  const input = document.getElementById('cmd-palette-input');
+  if (!overlay || !input) return;
+  overlay.classList.remove('hidden');
+  input.value = '';
+  selectedCmdIndex = 0;
+  renderCommandPaletteResults('');
+  setTimeout(function () { input.focus(); }, 50);
+}
+
+function closeCommandPalette() {
+  const overlay = document.getElementById('cmd-palette-overlay');
+  if (overlay) overlay.classList.add('hidden');
+}
+
+function renderCommandPaletteResults(query) {
+  const container = document.getElementById('cmd-palette-results');
+  if (!container) return;
+  const q = String(query || '').trim().toLowerCase();
+
+  let matches = [];
+
+  // 1. Aksi & Navigasi
+  CMD_ACTIONS.forEach(function (item) {
+    if (!q || item.title.toLowerCase().indexOf(q) !== -1 || item.desc.toLowerCase().indexOf(q) !== -1) {
+      matches.push({
+        type: item.type,
+        badge: item.type === 'nav' ? 'Menu' : 'Aksi',
+        title: item.title,
+        desc: item.desc,
+        icon: item.icon,
+        run: item.action
+      });
+    }
+  });
+
+  // 2. Ruangan (jika dicari)
+  if (q && STATE.ruanganList && STATE.ruanganList.length > 0) {
+    STATE.ruanganList.forEach(function (r) {
+      if ((r.nama_ruangan && r.nama_ruangan.toLowerCase().indexOf(q) !== -1) ||
+          (r.kode_ruangan && r.kode_ruangan.toLowerCase().indexOf(q) !== -1)) {
+        matches.push({
+          type: 'ruangan',
+          badge: 'Ruangan',
+          title: r.nama_ruangan + ' (' + r.kode_ruangan + ')',
+          desc: 'Institusi: ' + (r.institusi || '-') + ' | PJ: ' + (r.penanggung_jawab || '-'),
+          icon: 'building',
+          run: function () {
+            switchView('ruangan');
+            openDetailRuangan(r.kode_ruangan);
+          }
+        });
+      }
+    });
+  }
+
+  // 3. Barang yang sedang termuat (jika dicari)
+  if (q && STATE.barangList && STATE.barangList.length > 0) {
+    STATE.barangList.forEach(function (b) {
+      if ((b.nomor_inventaris && b.nomor_inventaris.toLowerCase().indexOf(q) !== -1) ||
+          (b.jenis_barang && b.jenis_barang.toLowerCase().indexOf(q) !== -1) ||
+          (b.spesifikasi && b.spesifikasi.toLowerCase().indexOf(q) !== -1)) {
+        matches.push({
+          type: 'barang',
+          badge: 'Barang',
+          title: b.nomor_inventaris + ' — ' + b.jenis_barang,
+          desc: (b.spesifikasi ? b.spesifikasi + ' | ' : '') + roomName(b.kode_ruangan) + ' | ' + b.status,
+          icon: 'box',
+          run: function () {
+            switchView('barang');
+            editBarang(b.nomor_inventaris);
+          }
+        });
+      }
+    });
+  }
+
+  if (matches.length === 0) {
+    container.innerHTML = '<div class="cmd-palette-empty">Tidak ada menu atau data yang cocok dengan "' + escapeHtml(q) + '"</div>';
+    window._currentCmdMatches = [];
+    return;
+  }
+
+  const displayMatches = matches.slice(0, 15);
+  window._currentCmdMatches = displayMatches;
+  if (selectedCmdIndex >= displayMatches.length) selectedCmdIndex = 0;
+
+  container.innerHTML = displayMatches.map(function (item, idx) {
+    const isSel = idx === selectedCmdIndex ? ' selected' : '';
+    return '<div class="cmd-palette-item' + isSel + '" onclick="execCmdPaletteIndex(' + idx + ')" onmouseenter="setCmdPaletteSelected(' + idx + ')">' +
+      '<span class="cmd-palette-icon">' + icon(item.icon, 18) + '</span>' +
+      '<div class="cmd-palette-info">' +
+        '<div class="cmd-palette-name">' +
+          escapeHtml(item.title) +
+          ' <span class="cmd-palette-badge">' + item.badge + '</span>' +
+        '</div>' +
+        '<div class="cmd-palette-desc">' + escapeHtml(item.desc) + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function setCmdPaletteSelected(idx) {
+  selectedCmdIndex = idx;
+  const items = document.querySelectorAll('.cmd-palette-item');
+  items.forEach(function (el, i) {
+    el.classList.toggle('selected', i === idx);
+  });
+}
+
+function execCmdPaletteIndex(idx) {
+  closeCommandPalette();
+  if (window._currentCmdMatches && window._currentCmdMatches[idx]) {
+    window._currentCmdMatches[idx].run();
+  }
+}
+
+// Event listener keyboard untuk Command Palette input
+const cmdInput = document.getElementById('cmd-palette-input');
+if (cmdInput) {
+  cmdInput.addEventListener('input', function () {
+    selectedCmdIndex = 0;
+    renderCommandPaletteResults(cmdInput.value);
+  });
+  cmdInput.addEventListener('keydown', function (e) {
+    const matches = window._currentCmdMatches || [];
+    if (matches.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectedCmdIndex = (selectedCmdIndex + 1) % matches.length;
+      setCmdPaletteSelected(selectedCmdIndex);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectedCmdIndex = (selectedCmdIndex - 1 + matches.length) % matches.length;
+      setCmdPaletteSelected(selectedCmdIndex);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      execCmdPaletteIndex(selectedCmdIndex);
+    }
+  });
+}
+
+const cmdOverlay = document.getElementById('cmd-palette-overlay');
+if (cmdOverlay) {
+  cmdOverlay.addEventListener('click', function (e) {
+    if (e.target.id === 'cmd-palette-overlay') closeCommandPalette();
+  });
+}
+
+// Global Keyboard Shortcuts (Ctrl+K, ESC)
+window.addEventListener('keydown', function (e) {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    const overlay = document.getElementById('cmd-palette-overlay');
+    if (overlay && !overlay.classList.contains('hidden')) {
+      closeCommandPalette();
+    } else {
+      openCommandPalette();
+    }
+  } else if (e.key === 'Escape') {
+    const cmdEl = document.getElementById('cmd-palette-overlay');
+    if (cmdEl && !cmdEl.classList.contains('hidden')) {
+      closeCommandPalette();
+      return;
+    }
+    const modalEl = document.getElementById('modal-overlay');
+    if (modalEl && !modalEl.classList.contains('hidden')) {
+      closeModal();
+      return;
+    }
+    const printEl = document.getElementById('print-preview-overlay');
+    if (printEl && !printEl.classList.contains('hidden')) {
+      printEl.classList.add('hidden');
+      return;
+    }
+  }
+});
+
+// Mobile Floating Action Button (FAB)
+function onMobileFabClick() {
+  switchView('barang');
+  const btn = document.getElementById('btn-new-barang');
+  if (btn) btn.click();
+}
+
+// ============================================================
+// HELPER DOKUMEN & PENOMORAN SURAT RESMI
+// ============================================================
+function romanMonth(d) {
+  const m = (d || new Date()).getMonth();
+  return ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'][m];
+}
+
+function generateNoSurat(kodeDoc, inst) {
+  const d = new Date();
+  const randNum = String(Math.floor(100 + Math.random() * 900));
+  const unit = inst || 'DAFI';
+  return randNum + '/' + kodeDoc + '/' + unit + '/' + romanMonth(d) + '/' + d.getFullYear();
+}
+
+// ============================================================
+// SMART CSV / EXCEL IMPORT WIZARD (MIGRASI DATA LAMA)
+// ============================================================
+let IMPORT_STATE = {
+  rawItems: [],
+  validItems: []
+};
+
+function openImportWizard() {
+  if (!STATE.ruanganList || STATE.ruanganList.length === 0) {
+    loadRuanganDropdownData();
+  }
+  IMPORT_STATE = { rawItems: [], validItems: [] };
+  const html =
+    '<div class="import-wizard-container">' +
+      '<div class="import-zone" id="import-drop-zone">' +
+        '<div class="import-zone-icon">' + icon('archive', 40) + '</div>' +
+        '<div class="import-zone-title">Pilih File CSV Data Lama Anda</div>' +
+        '<div class="import-zone-desc">Format file yang didukung: <strong>.csv</strong> (pemisah koma atau titik koma).</div>' +
+        '<div style="display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;">' +
+          '<label class="btn btn-primary" style="margin:0;cursor:pointer;">' +
+            icon('plus', 15) + '<span>Pilih File CSV</span>' +
+            '<input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="handleCsvFileChange(this)">' +
+          '</label>' +
+          '<button type="button" class="btn btn-outline" onclick="downloadCsvTemplate()">' +
+            icon('archive', 15) + '<span>Unduh Template CSV</span>' +
+          '</button>' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;background:#f8fafc;padding:12px;border-radius:6px;border:1px solid #e2e8f0;">' +
+        '<div>' +
+          '<label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px;">Penanganan Duplikasi Nomor Inventaris:</label>' +
+          '<select id="import-conflict-mode" style="width:100%;font-size:12px;padding:6px;border:1px solid #cbd5e1;border-radius:4px;">' +
+            '<option value="skip">Lewati (Abaikan jika nomor sudah ada)</option>' +
+            '<option value="overwrite">Timpa (Perbarui data jika nomor sama)</option>' +
+          '</select>' +
+        '</div>' +
+        '<div>' +
+          '<label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px;">Nomor Inventaris Kosong:</label>' +
+          '<div style="font-size:12px;color:#475569;margin-top:8px;">' +
+            '✅ <em>Otomatis dibuatkan sesuai standar SIDAFI ({klasifikasi}.{tahun}.{urut})</em>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div id="import-preview-section" class="hidden"></div>' +
+    '</div>';
+
+  openModal('Impor Data Barang (Migrasi Data Lama)', html, 'modal-xl');
+}
+
+function downloadCsvTemplate() {
+  const headers = ['nomor_inventaris', 'golongan_barang', 'jenis_barang', 'spesifikasi', 'nama_satuan', 'tahun_perolehan', 'kondisi', 'harga', 'kode_ruangan', 'sumber_dana', 'no_bukti_nota', 'keterangan'];
+  const samples = [
+    ['02.03.13.2023.001', 'Alat Kantor & Rumah Tangga', 'Kursi Kerja', 'Chitose Lipat Busa Hitam', 'Unit', '2023', 'baik', '250000', 'SMP.01', 'Yayasan', 'NOTA-001', 'Inventaris ruang guru'],
+    ['', 'Komputer & Elektronik', 'Laptop Guru', 'Lenovo ThinkPad Core i5', 'Unit', '2023', 'baik', '7500000', 'SMP.02', 'BOS', 'NOTA-002', 'Nomor kosong otomatis digenerate'],
+    ['', 'Komputer & Elektronik', 'Proyektor', 'Epson EB-X400 3300 Lumens', 'Unit', '2024', 'baik', '5200000', 'MA.01', 'Yayasan', 'NOTA-003', 'Ruang kelas MA']
+  ];
+  const csvText = '\uFEFF' + headers.join(',') + '\n' + samples.map(function (r) {
+    return r.map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(',');
+  }).join('\n');
+
+  const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'Template_Migrasi_SIDAFI.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Template CSV berhasil diunduh.');
+}
+
+function parseCsvText(text) {
+  const lines = [];
+  let row = [''];
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const next = text[i + 1];
+    if (c === '"') {
+      if (inQuotes && next === '"') {
+        row[row.length - 1] += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if ((c === ',' || c === ';') && !inQuotes) {
+      row.push('');
+    } else if ((c === '\r' || c === '\n') && !inQuotes) {
+      if (c === '\r' && next === '\n') i++;
+      lines.push(row);
+      row = [''];
+    } else {
+      row[row.length - 1] += c;
+    }
+  }
+  if (row.length > 1 || row[0] !== '') lines.push(row);
+  return lines;
+}
+
+function normalizeHeaderKey(h) {
+  const s = String(h || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (s.indexOf('nomor') !== -1 || s.indexOf('kodeinv') !== -1 || s.indexOf('nomer') !== -1) return 'nomor_inventaris';
+  if (s.indexOf('golongan') !== -1) return 'golongan_barang';
+  if (s.indexOf('jenis') !== -1 || s.indexOf('namabarang') !== -1 || s === 'nama' || s === 'barang') return 'jenis_barang';
+  if (s.indexOf('spek') !== -1 || s.indexOf('spesifikasi') !== -1 || s.indexOf('merk') !== -1) return 'spesifikasi';
+  if (s.indexOf('satuan') !== -1) return 'nama_satuan';
+  if (s.indexOf('tahun') !== -1 || s.indexOf('thn') !== -1) return 'tahun_perolehan';
+  if (s.indexOf('kondisi') !== -1) return 'kondisi';
+  if (s.indexOf('harga') !== -1 || s.indexOf('nilai') !== -1 || s.indexOf('biaya') !== -1) return 'harga';
+  if (s.indexOf('ruang') !== -1 || s.indexOf('lokasi') !== -1) return 'kode_ruangan';
+  if (s.indexOf('sumber') !== -1 || s.indexOf('dana') !== -1) return 'sumber_dana';
+  if (s.indexOf('bukti') !== -1 || s.indexOf('nota') !== -1 || s.indexOf('kwitansi') !== -1) return 'no_bukti_nota';
+  if (s.indexOf('ket') !== -1 || s.indexOf('keterangan') !== -1 || s.indexOf('catatan') !== -1) return 'keterangan';
+  return s;
+}
+
+function handleCsvFileChange(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    processCsvData(e.target.result, file.name);
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function processCsvData(csvText, fileName) {
+  const table = parseCsvText(csvText);
+  if (table.length < 2) {
+    toast('File CSV kosong atau tidak memiliki baris data.', true);
+    return;
+  }
+  const rawHeaders = table[0];
+  const keys = rawHeaders.map(normalizeHeaderKey);
+
+  const items = [];
+  const validRuanganMap = {};
+  (STATE.ruanganList || []).forEach(function (r) {
+    validRuanganMap[r.kode_ruangan.toLowerCase()] = r.kode_ruangan;
+    if (r.nama_ruangan) validRuanganMap[r.nama_ruangan.toLowerCase()] = r.kode_ruangan;
+  });
+
+  for (let i = 1; i < table.length; i++) {
+    const row = table[i];
+    if (row.length === 1 && !row[0].trim()) continue;
+    const obj = {};
+    keys.forEach(function (k, idx) {
+      obj[k] = row[idx] ? String(row[idx]).trim() : '';
+    });
+
+    // Lewati jika seluruh kolom dalam baris kosong (misal sisa baris kosong koma dari Excel)
+    const hasAnyVal = keys.some(function (k) { return obj[k] !== ''; });
+    if (!hasAnyVal) continue;
+
+    const errors = [];
+    const warnings = [];
+
+    if (!obj.jenis_barang) errors.push('Nama/jenis barang kosong');
+
+    const rawRuang = (obj.kode_ruangan || '').toLowerCase();
+    if (!rawRuang) {
+      errors.push('Ruangan belum diisi');
+    } else if (validRuanganMap[rawRuang]) {
+      obj.kode_ruangan = validRuanganMap[rawRuang];
+    } else {
+      errors.push('Ruangan "' + obj.kode_ruangan + '" tidak terdaftar');
+    }
+
+    const tahunNum = parseInt(obj.tahun_perolehan, 10);
+    if (!tahunNum || isNaN(tahunNum) || tahunNum < 1950) {
+      obj.tahun_perolehan = new Date().getFullYear();
+      warnings.push('Tahun diatur ke ' + obj.tahun_perolehan);
+    }
+
+    if (!obj.spesifikasi || obj.spesifikasi === '-') {
+      warnings.push('Spesifikasi/merk kosong');
+    }
+    const hargaNum = Number(String(obj.harga || '0').replace(/\D/g, '')) || 0;
+    obj.harga = hargaNum;
+    if (hargaNum === 0) {
+      warnings.push('Harga Rp 0');
+    }
+
+    obj._errors = errors;
+    obj._warnings = warnings;
+    obj._isValid = errors.length === 0;
+    items.push(obj);
+  }
+
+  IMPORT_STATE.rawItems = items;
+  IMPORT_STATE.validItems = items.filter(function (x) { return x._isValid; });
+  renderImportPreview(items, fileName);
+}
+
+function renderImportPreview(items, fileName) {
+  const container = document.getElementById('import-preview-section');
+  if (!container) return;
+  container.classList.remove('hidden');
+
+  const readyCount = items.filter(function (x) { return x._isValid && x._warnings.length === 0; }).length;
+  const warningCount = items.filter(function (x) { return x._isValid && x._warnings.length > 0; }).length;
+  const errorCount = items.filter(function (x) { return !x._isValid; }).length;
+
+  const tableRowsHtml = items.map(function (item, idx) {
+    let rowClass = '';
+    let badgeHtml = '';
+    if (!item._isValid) {
+      rowClass = 'row-invalid';
+      badgeHtml = '<span class="badge badge-danger" title="' + escapeHtml(item._errors.join(', ')) + '">❌ ' + escapeHtml(item._errors[0]) + '</span>';
+    } else if (item._warnings.length > 0) {
+      rowClass = 'row-warning';
+      badgeHtml = '<span class="badge badge-warning" title="' + escapeHtml(item._warnings.join(', ')) + '">⚠️ Perhatian</span>';
+    } else {
+      badgeHtml = '<span class="badge badge-valid">✅ Valid</span>';
+    }
+
+    return '<tr class="' + rowClass + '">' +
+      '<td>' + (idx + 1) + '</td>' +
+      '<td>' + badgeHtml + '</td>' +
+      '<td class="mono">' + (item.nomor_inventaris || '<em style="color:#64748b;">(Otomatis)</em>') + '</td>' +
+      '<td><strong>' + escapeHtml(item.jenis_barang) + '</strong>' + (item.spesifikasi ? '<br><small style="color:#64748b;">' + escapeHtml(item.spesifikasi) + '</small>' : '') + '</td>' +
+      '<td>' + escapeHtml(item.kode_ruangan || '-') + '</td>' +
+      '<td>' + (item.tahun_perolehan || '-') + '</td>' +
+      '<td>' + rupiah(item.harga) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  container.innerHTML =
+    '<div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:14px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
+        '<div style="font-weight:600;font-size:13.5px;">Pratinjau Data: <span style="color:#475569;">' + escapeHtml(fileName) + ' (' + items.length + ' baris)</span></div>' +
+        '<div class="import-summary-bar" style="margin:0;">' +
+          '<span class="import-stat-pill success">✅ ' + (readyCount + warningCount) + ' Siap Diimpor</span>' +
+          (warningCount > 0 ? '<span class="import-stat-pill warning">⚠️ ' + warningCount + ' Perlu Dilengkapi Nanti</span>' : '') +
+          (errorCount > 0 ? '<span class="import-stat-pill error">❌ ' + errorCount + ' Ditolak</span>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="import-preview-wrap">' +
+        '<table class="import-preview-table">' +
+          '<thead><tr>' +
+            '<th>#</th><th>Status</th><th>Nomor Inv</th><th>Jenis / Spesifikasi</th><th>Ruangan</th><th>Tahun</th><th>Harga</th>' +
+          '</tr></thead>' +
+          '<tbody>' + tableRowsHtml + '</tbody>' +
+        '</table>' +
+      '</div>' +
+      '<div class="modal-footer">' +
+        '<button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+        '<button type="button" class="btn-primary" id="btn-execute-import" onclick="executeBatchImport()" ' + (IMPORT_STATE.validItems.length === 0 ? 'disabled' : '') + '>' +
+          iconLabel('check', 'Eksekusi Impor ' + IMPORT_STATE.validItems.length + ' Data') +
+        '</button>' +
+      '</div>' +
+    '</div>';
+}
+
+async function executeBatchImport() {
+  if (!IMPORT_STATE.validItems || IMPORT_STATE.validItems.length === 0) {
+    toast('Tidak ada baris data valid untuk diimpor.', true);
+    return;
+  }
+  const btn = document.getElementById('btn-execute-import');
+  if (btn) { btn.disabled = true; btn.innerHTML = 'Mengimpor data ke Google Sheets...'; }
+
+  const conflictMode = document.getElementById('import-conflict-mode') ? document.getElementById('import-conflict-mode').value : 'skip';
+
+  try {
+    const res = await api('importBarangBatch', {
+      items: IMPORT_STATE.validItems,
+      conflict_mode: conflictMode
+    });
+    closeModal();
+    toast('Migrasi selesai: ' + res.added + ' barang ditambahkan' + (res.updated > 0 ? ', ' + res.updated + ' diperbarui' : '') + (res.skipped > 0 ? ', ' + res.skipped + ' dilewati' : '') + '.');
+    loadBarang(1);
+    loadDashboard();
+  } catch (err) {
+    toast(err.message, true);
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Coba Lagi'; }
+  }
+}
+
+// ============================================================
+// PUSAT DOKUMEN & ADMINISTRASI SARPRAS
+// ============================================================
+function openPusatDokumenModal() {
+  const html =
+    '<div style="margin-bottom:14px;color:#475569;font-size:13px;">' +
+      'Pilih jenis dokumen administrasi sarpras resmi yang ingin Anda terbitkan atau cetak:' +
+    '</div>' +
+    '<div class="doc-hub-grid">' +
+      '<div class="doc-hub-card" onclick="closeModal(); openModalSPPB();">' +
+        '<div class="doc-hub-icon">📝</div>' +
+        '<div class="doc-hub-title">Surat Pengajuan Pengadaan (SPPB)</div>' +
+        '<div class="doc-hub-desc">Formulir usulan pembelian aset baru, estimasi anggaran, dan lembar disposisi pimpinan.</div>' +
+      '</div>' +
+      '<div class="doc-hub-card" onclick="closeModal(); openModalBAST();">' +
+        '<div class="doc-hub-icon">🤝</div>' +
+        '<div class="doc-hub-title">Berita Acara Serah Terima (BAST)</div>' +
+        '<div class="doc-hub-desc">Berita acara penerimaan barang dari vendor / rekanan atau serah terima hibah donatur.</div>' +
+      '</div>' +
+      '<div class="doc-hub-card" onclick="closeModal(); openBAPSelector();">' +
+        '<div class="doc-hub-icon">🗑️</div>' +
+        '<div class="doc-hub-title">Berita Acara Pemusnahan (BAP)</div>' +
+        '<div class="doc-hub-desc">Surat berita acara resmi penghapusan dan pemusnahan aset yang disetujui.</div>' +
+      '</div>' +
+      '<div class="doc-hub-card" onclick="closeModal(); switchView(\'peminjaman\');">' +
+        '<div class="doc-hub-icon">📋</div>' +
+        '<div class="doc-hub-title">Surat Bukti Peminjaman (Surat Jalan)</div>' +
+        '<div class="doc-hub-desc">Surat izin pinjam pakai barang sarpras lengkap dengan pakta integritas peminjam.</div>' +
+      '</div>' +
+      '<div class="doc-hub-card" onclick="closeModal(); printBeritaAcaraOpname();">' +
+        '<div class="doc-hub-icon">📊</div>' +
+        '<div class="doc-hub-title">Berita Acara Stock Opname Triwulan</div>' +
+        '<div class="doc-hub-desc">Laporan hasil verifikasi audit fisik inventaris berkala 3 bulanan.</div>' +
+      '</div>' +
+    '</div>';
+
+  openModal('Pusat Cetak Dokumen Administrasi Sarpras', html, 'modal-lg');
+}
+
+// ---------------- DOKUMEN 1: BERITA ACARA PEMUSNAHAN (BAP) ----------------
+function openBAPSelector() {
+  const approved = (PENGHAPUSAN_CACHE || []).filter(function (p) { return p.status === 'disetujui'; });
+  if (approved.length === 0) {
+    openModal('Cetak Berita Acara Pemusnahan (BAP)',
+      '<div class="empty-state-card">' +
+        '<div class="empty-state-icon">' + icon('trash', 32) + '</div>' +
+        '<div class="empty-state-title">Belum Ada Usulan yang Disetujui</div>' +
+        '<div class="empty-state-desc">Berita Acara Pemusnahan hanya dapat diterbitkan untuk barang yang usulan penghapusannya telah disetujui pimpinan di menu Usulan Penghapusan.</div>' +
+        '<button class="btn btn-primary" onclick="closeModal(); switchView(\'penghapusan\');">Buka Menu Penghapusan</button>' +
+      '</div>');
+    return;
+  }
+
+  const listHtml = approved.map(function (p) {
+    return '<div class="doc-hub-card" style="margin-bottom:8px;" onclick="closeModal(); printBAP(\'' + p.id_hapus + '\')">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<div><strong>' + escapeHtml(p.jenis_barang) + '</strong> (' + p.nomor_inventaris + ')</div>' +
+        '<span class="badge badge-success">Disetujui</span>' +
+      '</div>' +
+      '<div style="font-size:12px;color:#64748b;">Kategori: ' + p.kategori + ' | Alasan: ' + escapeHtml(p.alasan) + ' | Disetujui: ' + (p.disetujui_oleh || '-') + '</div>' +
+    '</div>';
+  }).join('');
+
+  openModal('Pilih Barang untuk Berita Acara Pemusnahan (BAP)',
+    '<div style="max-height:360px;overflow-y:auto;">' + listHtml + '</div>', 'modal-lg');
+}
+
+async function printBAP(id_hapus) {
+  try {
+    let item = (PENGHAPUSAN_CACHE || []).find(function (x) { return x.id_hapus === id_hapus; });
+    if (!item) {
+      const res = await api('listPenghapusan', {});
+      PENGHAPUSAN_CACHE = res.data;
+      item = (PENGHAPUSAN_CACHE || []).find(function (x) { return x.id_hapus === id_hapus; });
+    }
+    if (!item) { toast('Data penghapusan tidak ditemukan.', true); return; }
+
+    const inst = item.institusi || 'SMP';
+    const noSurat = item.nomor_ba || generateNoSurat('BA-HAPUS', inst);
+    const tglResmi = item.tanggal_keputusan ? fmtDate(item.tanggal_keputusan) : new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    const html =
+      '<div class="print-page portrait">' + printBgImage(inst) +
+        '<div class="print-content">' +
+          '<div class="print-title">BERITA ACARA PENGHAPUSAN DAN PEMUSNAHAN BARANG INVENTARIS</div>' +
+          '<div style="text-align:center;font-size:12px;margin:-12px 0 16px;color:#333;">Nomor: ' + noSurat + '</div>' +
+          '<div class="print-clause">' +
+            'Pada hari ini tanggal <strong>' + tglResmi + '</strong>, bertempat di lingkungan Sarana dan Prasarana <strong>' + (PIMPINAN_JABATAN[inst] ? PIMPINAN_JABATAN[inst].replace('Kepala ', '') + ' DAFI' : 'DAFI') + '</strong>, telah dilakukan pemeriksaan fisik dan tindakan penghapusan/pemusnahan terhadap aset barang inventaris sebagai berikut:' +
+          '</div>' +
+          '<table class="print-data-table">' +
+            '<thead><tr>' +
+              '<th>No</th><th>Nomor Inventaris</th><th>Nama / Spesifikasi Barang</th><th>Kategori</th><th>Lokasi Terakhir</th><th>Nilai Perolehan</th>' +
+            '</tr></thead>' +
+            '<tbody>' +
+              '<tr>' +
+                '<td>1</td>' +
+                '<td class="mono">' + item.nomor_inventaris + '</td>' +
+                '<td><strong>' + escapeHtml(item.jenis_barang) + '</strong><br><small>' + escapeHtml(item.spesifikasi || '-') + '</small></td>' +
+                '<td>' + item.kategori + '</td>' +
+                '<td>' + roomName(item.kode_ruangan) + '</td>' +
+                '<td>' + rupiah(item.harga || 0) + '</td>' +
+              '</tr>' +
+            '</tbody>' +
+          '</table>' +
+          '<div class="print-clause">' +
+            '<strong>Dasar dan Pertimbangan Penghapusan:</strong><br>' +
+            'Barang tersebut di atas telah dinyatakan <em>' + item.kategori + '</em> dengan alasan: "' + escapeHtml(item.alasan) + '". Biaya perbaikan atau pemeliharaan dinilai tidak efisien secara ekonomis, sehingga diputuskan untuk dihapuskan dari Buku Daftar Inventaris Sarpras.' +
+          '</div>' +
+          '<div class="print-clause">' +
+            'Demikian Berita Acara ini dibuat dengan sebenarnya dalam rangkap secukupnya untuk dapat dipergunakan sebagaimana mestinya dan menjadi dasar pertanggungjawaban pembukuan inventaris.' +
+          '</div>' +
+          '<div class="sig-grid-3">' +
+            sigBlock('Petugas Pemeriksa', item.diusulkan_oleh) +
+            sigBlock('Penanggung Jawab Sarpras', penanggungJawabNama(inst)) +
+            sigBlock('Mengetahui / Menyetujui,<br>' + (PIMPINAN_JABATAN[inst] || 'Pimpinan'), pimpinanNama(inst)) +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    showPrintPreview(html, 'portrait');
+  } catch (err) { toast(err.message, true); }
+}
+
+// ---------------- DOKUMEN 2: PERMOHONAN PENGADAAN (SPPB) ----------------
+let SPPB_ROW_COUNTER = 0;
+
+function openModalSPPB() {
+  SPPB_ROW_COUNTER = 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const userInst = STATE.user.institusi || 'SMP';
+
+  const html =
+    '<form id="form-sppb" onsubmit="event.preventDefault(); printSPPB();">' +
+      '<div class="doc-form-row">' +
+        '<label>Institusi / Unit<select id="sppb-institusi">' + institusiOptions(userInst) + '</select></label>' +
+        '<label>Tanggal Pengajuan<input type="date" id="sppb-tanggal" value="' + today + '" required></label>' +
+        '<label>Unit / Ruangan Pemohon<input id="sppb-pemohon" required value="' + (STATE.user.nama || '') + '" placeholder="Contoh: Lab Komputer / Kelas 7"></label>' +
+        '<label>Tingkat Urgensi<select id="sppb-urgensi">' +
+          '<option value="Mendesak (Prioritas 1)">Mendesak (Prioritas 1)</option>' +
+          '<option value="Rutin / Berkala (Prioritas 2)" selected>Rutin / Berkala (Prioritas 2)</option>' +
+          '<option value="Program Baru (Prioritas 3)">Program Baru (Prioritas 3)</option>' +
+        '</select></label>' +
+      '</div>' +
+      '<label>Alasan / Justifikasi Kebutuhan<textarea id="sppb-justifikasi" required rows="2" placeholder="Jelaskan tujuan pengadaan barang ini dan peruntukannya bagi kegiatan operasional sekolah/pesantren..."></textarea></label>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 6px;">' +
+        '<strong style="font-size:13px;">Daftar Barang yang Diajukan:</strong>' +
+        '<button type="button" class="btn btn-sm btn-outline" onclick="addSppbItemRow()">' + icon('plus', 13) + '<span>Tambah Baris</span></button>' +
+      '</div>' +
+      '<div style="overflow-x:auto;">' +
+        '<table class="doc-items-table" id="table-sppb-items">' +
+          '<thead><tr>' +
+            '<th style="width:25%;">Nama Barang</th>' +
+            '<th style="width:30%;">Spesifikasi / Merk</th>' +
+            '<th style="width:10%;">Jumlah</th>' +
+            '<th style="width:12%;">Satuan</th>' +
+            '<th style="width:18%;">Est. Harga Satuan (Rp)</th>' +
+            '<th style="width:5%;">Aksi</th>' +
+          '</tr></thead>' +
+          '<tbody></tbody>' +
+        '</table>' +
+      '</div>' +
+      '<div style="text-align:right;font-size:13px;font-weight:600;margin-top:8px;">' +
+        'Total Estimasi Anggaran: <span id="sppb-grand-total" style="color:var(--red);">Rp 0</span>' +
+      '</div>' +
+      '<div class="modal-footer">' +
+        '<button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+        '<button type="submit" class="btn-primary">' + iconLabel('printer', 'Terbitkan & Cetak SPPB') + '</button>' +
+      '</div>' +
+    '</form>';
+
+  openModal('Surat Permohonan Pengadaan Barang Baru (SPPB)', html, 'modal-xl');
+  addSppbItemRow();
+}
+
+function addSppbItemRow() {
+  SPPB_ROW_COUNTER++;
+  const tbody = document.querySelector('#table-sppb-items tbody');
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  tr.id = 'sppb-row-' + SPPB_ROW_COUNTER;
+  tr.innerHTML =
+    '<td><input required class="sppb-nama" placeholder="Contoh: Kursi Belajar"></td>' +
+    '<td><input class="sppb-spek" placeholder="Contoh: Busa tebal pipa besi"></td>' +
+    '<td><input required type="number" min="1" class="sppb-qty" value="1" oninput="calculateSppbTotal()"></td>' +
+    '<td><input class="sppb-satuan" value="Unit" placeholder="Unit/Pcs/Set"></td>' +
+    '<td><input required type="text" inputmode="numeric" class="sppb-harga" value="0" oninput="onSppbHargaInput(this)"></td>' +
+    '<td style="text-align:center;"><button type="button" class="btn btn-sm btn-outline" style="color:#ef4444;border-color:#ef4444;padding:2px 6px;" onclick="removeSppbItemRow(' + SPPB_ROW_COUNTER + ')">&times;</button></td>';
+  tbody.appendChild(tr);
+  calculateSppbTotal();
+}
+
+function removeSppbItemRow(id) {
+  const row = document.getElementById('sppb-row-' + id);
+  if (row) row.remove();
+  calculateSppbTotal();
+}
+
+function onSppbHargaInput(el) {
+  const digits = el.value.replace(/\D/g, '');
+  el.value = digits ? Number(digits).toLocaleString('id-ID') : '0';
+  calculateSppbTotal();
+}
+
+function calculateSppbTotal() {
+  let total = 0;
+  const rows = document.querySelectorAll('#table-sppb-items tbody tr');
+  rows.forEach(function (r) {
+    const qty = parseInt(r.querySelector('.sppb-qty').value, 10) || 0;
+    const harga = Number(r.querySelector('.sppb-harga').value.replace(/\D/g, '')) || 0;
+    total += (qty * harga);
+  });
+  const totalEl = document.getElementById('sppb-grand-total');
+  if (totalEl) totalEl.textContent = rupiah(total);
+}
+
+function printSPPB() {
+  const inst = document.getElementById('sppb-institusi').value || 'SMP';
+  const tgl = fmtDate(document.getElementById('sppb-tanggal').value);
+  const pemohon = document.getElementById('sppb-pemohon').value;
+  const urgensi = document.getElementById('sppb-urgensi').value;
+  const justifikasi = document.getElementById('sppb-justifikasi').value;
+
+  const rows = document.querySelectorAll('#table-sppb-items tbody tr');
+  if (rows.length === 0) { toast('Daftar barang usulan belum diisi.', true); return; }
+
+  let grandTotal = 0;
+  const itemsHtml = Array.from(rows).map(function (r, idx) {
+    const nama = r.querySelector('.sppb-nama').value;
+    const spek = r.querySelector('.sppb-spek').value;
+    const qty = parseInt(r.querySelector('.sppb-qty').value, 10) || 0;
+    const satuan = r.querySelector('.sppb-satuan').value || 'Unit';
+    const harga = Number(r.querySelector('.sppb-harga').value.replace(/\D/g, '')) || 0;
+    const subtotal = qty * harga;
+    grandTotal += subtotal;
+
+    return '<tr>' +
+      '<td style="text-align:center;">' + (idx + 1) + '</td>' +
+      '<td><strong>' + escapeHtml(nama) + '</strong></td>' +
+      '<td>' + escapeHtml(spek || '-') + '</td>' +
+      '<td style="text-align:center;">' + qty + ' ' + escapeHtml(satuan) + '</td>' +
+      '<td style="text-align:right;">' + rupiah(harga) + '</td>' +
+      '<td style="text-align:right;font-weight:600;">' + rupiah(subtotal) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  const noSurat = generateNoSurat('SPPB', inst);
+
+  const html =
+    '<div class="print-page portrait">' + printBgImage(inst) +
+      '<div class="print-content">' +
+        '<div class="print-title">SURAT PERMOHONAN PENGADAAN BARANG (SPPB)</div>' +
+        '<div style="text-align:center;font-size:12px;margin:-12px 0 16px;color:#333;">Nomor: ' + noSurat + '</div>' +
+        '<div class="print-meta-grid">' +
+          '<div class="print-meta-item"><span class="print-meta-k">Tanggal Usulan</span>: ' + tgl + '</div>' +
+          '<div class="print-meta-item"><span class="print-meta-k">Tingkat Urgensi</span>: ' + urgensi + '</div>' +
+          '<div class="print-meta-item"><span class="print-meta-k">Unit / Pemohon</span>: ' + escapeHtml(pemohon) + '</div>' +
+          '<div class="print-meta-item"><span class="print-meta-k">Institusi</span>: ' + inst + ' DAFI</div>' +
+        '</div>' +
+        '<div class="print-clause">' +
+          '<strong>Alasan & Justifikasi Pengadaan:</strong><br>' +
+          escapeHtml(justifikasi) +
+        '</div>' +
+        '<div class="print-subtitle">Rincian Usulan Barang:</div>' +
+        '<table class="print-data-table">' +
+          '<thead><tr>' +
+            '<th style="width:5%;">No</th>' +
+            '<th>Nama Barang</th>' +
+            '<th>Spesifikasi Teknis</th>' +
+            '<th style="width:12%;">Volume</th>' +
+            '<th style="width:18%;">Est. Harga Satuan</th>' +
+            '<th style="width:20%;">Total Biaya</th>' +
+          '</tr></thead>' +
+          '<tbody>' + itemsHtml + '</tbody>' +
+          '<tfoot><tr>' +
+            '<th colspan="5" style="text-align:right;font-weight:bold;">TOTAL USULAN ANGGARAN:</th>' +
+            '<th style="text-align:right;font-weight:bold;color:#b91c1c;">' + rupiah(grandTotal) + '</th>' +
+          '</tr></tfoot>' +
+        '</table>' +
+        '<div class="print-disposisi-box">' +
+          '<div class="print-disposisi-title">LEMBAR DISPOSISI & PERSETUJUAN PIMPINAN:</div>' +
+          '<div style="display:flex;justify-content:space-between;font-size:10.5px;">' +
+            '<div>Catatan Bagian Keuangan: [ &nbsp; ] Anggaran Tersedia &nbsp;&nbsp; [ &nbsp; ] Ditunda / Tidak Tersedia</div>' +
+            '<div>Keputusan: [ &nbsp; ] Setuju &nbsp;&nbsp; [ &nbsp; ] Tolak &nbsp;&nbsp; [ &nbsp; ] Revisi</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="sig-grid-4">' +
+          sigBlock('Pemohon', pemohon) +
+          sigBlock('Waka Sarpras', penanggungJawabNama(inst)) +
+          sigBlock('Bagian Keuangan', STATE.pengaturan['keuangan_nama'] || 'Bendahara') +
+          sigBlock('Menyetujui,<br>' + (PIMPINAN_JABATAN[inst] || 'Pimpinan'), pimpinanNama(inst)) +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  closeModal();
+  showPrintPreview(html, 'portrait');
+}
+
+// ---------------- DOKUMEN 3: SERAH TERIMA BARANG (BAST) ----------------
+let BAST_ROW_COUNTER = 0;
+
+function openModalBAST() {
+  BAST_ROW_COUNTER = 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const userInst = STATE.user.institusi || 'SMP';
+
+  const html =
+    '<form id="form-bast" onsubmit="event.preventDefault(); printBAST();">' +
+      '<div class="doc-form-row">' +
+        '<label>Institusi / Unit<select id="bast-institusi">' + institusiOptions(userInst) + '</select></label>' +
+        '<label>Tanggal Serah Terima<input type="date" id="bast-tanggal" value="' + today + '" required></label>' +
+        '<label>Jenis Penerimaan<select id="bast-jenis-terima">' +
+          '<option value="Pembelian / Pengadaan Vendor">Pembelian / Pengadaan Vendor</option>' +
+          '<option value="Hibah / Wakaf Donatur">Hibah / Wakaf Donatur</option>' +
+          '<option value="Bantuan Yayasan">Bantuan Yayasan</option>' +
+          '<option value="Mutasi Antar Unit DAFI">Mutasi Antar Unit DAFI</option>' +
+        '</select></label>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;background:#f8fafc;padding:12px;border-radius:6px;border:1px solid #e2e8f0;margin-bottom:12px;">' +
+        '<div>' +
+          '<div style="font-weight:600;font-size:12.5px;color:#1e293b;margin-bottom:6px;">PIHAK PERTAMA (Yang Menyerahkan):</div>' +
+          '<label>Nama Pihak I<input id="bast-p1-nama" required placeholder="Contoh: CV. Maju Bersama / H. Fulan"></label>' +
+          '<label>Jabatan / Instansi<input id="bast-p1-instansi" placeholder="Contoh: Vendor Penyedia / Donatur"></label>' +
+        '</div>' +
+        '<div>' +
+          '<div style="font-weight:600;font-size:12.5px;color:#1e293b;margin-bottom:6px;">PIHAK KEDUA (Yang Menerima):</div>' +
+          '<label>Nama Penerima<input id="bast-p2-nama" required value="' + (penanggungJawabNama(userInst) || STATE.user.nama || '') + '" placeholder="Nama Koordinator Sarpras"></label>' +
+          '<label>Jabatan<input id="bast-p2-jabatan" value="Koordinator Sarpras ' + userInst + '" placeholder="Jabatan penerima"></label>' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 6px;">' +
+        '<strong style="font-size:13px;">Daftar Barang yang Diserahterimakan:</strong>' +
+        '<button type="button" class="btn btn-sm btn-outline" onclick="addBastItemRow()">' + icon('plus', 13) + '<span>Tambah Baris</span></button>' +
+      '</div>' +
+      '<div style="overflow-x:auto;">' +
+        '<table class="doc-items-table" id="table-bast-items">' +
+          '<thead><tr>' +
+            '<th style="width:30%;">Nama Barang</th>' +
+            '<th style="width:35%;">Spesifikasi / Merk</th>' +
+            '<th style="width:12%;">Jumlah</th>' +
+            '<th style="width:13%;">Satuan</th>' +
+            '<th style="width:10%;">Aksi</th>' +
+          '</tr></thead>' +
+          '<tbody></tbody>' +
+        '</table>' +
+      '</div>' +
+      '<div class="modal-footer">' +
+        '<button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+        '<button type="submit" class="btn-primary">' + iconLabel('printer', 'Terbitkan & Cetak BAST') + '</button>' +
+      '</div>' +
+    '</form>';
+
+  openModal('Berita Acara Serah Terima Barang / Hibah (BAST)', html, 'modal-xl');
+  addBastItemRow();
+}
+
+function addBastItemRow() {
+  BAST_ROW_COUNTER++;
+  const tbody = document.querySelector('#table-bast-items tbody');
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  tr.id = 'bast-row-' + BAST_ROW_COUNTER;
+  tr.innerHTML =
+    '<td><input required class="bast-nama" placeholder="Contoh: AC Daikin 1 PK"></td>' +
+    '<td><input class="bast-spek" placeholder="Contoh: Inverter R32 Putih"></td>' +
+    '<td><input required type="number" min="1" class="bast-qty" value="1"></td>' +
+    '<td><input class="bast-satuan" value="Unit"></td>' +
+    '<td style="text-align:center;"><button type="button" class="btn btn-sm btn-outline" style="color:#ef4444;border-color:#ef4444;padding:2px 6px;" onclick="removeBastItemRow(' + BAST_ROW_COUNTER + ')">&times;</button></td>';
+  tbody.appendChild(tr);
+}
+
+function removeBastItemRow(id) {
+  const row = document.getElementById('bast-row-' + id);
+  if (row) row.remove();
+}
+
+function printBAST() {
+  const inst = document.getElementById('bast-institusi').value || 'SMP';
+  const tgl = fmtDate(document.getElementById('bast-tanggal').value);
+  const jenis = document.getElementById('bast-jenis-terima').value;
+  const p1Nama = document.getElementById('bast-p1-nama').value;
+  const p1Inst = document.getElementById('bast-p1-instansi').value || 'Pihak Pertama';
+  const p2Nama = document.getElementById('bast-p2-nama').value;
+  const p2Jabatan = document.getElementById('bast-p2-jabatan').value || 'Koordinator Sarpras';
+
+  const rows = document.querySelectorAll('#table-bast-items tbody tr');
+  if (rows.length === 0) { toast('Daftar barang serah terima belum diisi.', true); return; }
+
+  const itemsHtml = Array.from(rows).map(function (r, idx) {
+    const nama = r.querySelector('.bast-nama').value;
+    const spek = r.querySelector('.bast-spek').value;
+    const qty = parseInt(r.querySelector('.bast-qty').value, 10) || 0;
+    const satuan = r.querySelector('.bast-satuan').value || 'Unit';
+
+    return '<tr>' +
+      '<td style="text-align:center;">' + (idx + 1) + '</td>' +
+      '<td><strong>' + escapeHtml(nama) + '</strong></td>' +
+      '<td>' + escapeHtml(spek || '-') + '</td>' +
+      '<td style="text-align:center;">' + qty + ' ' + escapeHtml(satuan) + '</td>' +
+      '<td style="text-align:center;color:#16a34a;font-weight:600;">Baik / Lengkap</td>' +
+    '</tr>';
+  }).join('');
+
+  const noSurat = generateNoSurat('BAST', inst);
+
+  const html =
+    '<div class="print-page portrait">' + printBgImage(inst) +
+      '<div class="print-content">' +
+        '<div class="print-title">BERITA ACARA SERAH TERIMA BARANG (BAST)</div>' +
+        '<div style="text-align:center;font-size:12px;margin:-12px 0 16px;color:#333;">Nomor: ' + noSurat + '</div>' +
+        '<div class="print-clause">' +
+          'Pada hari ini tanggal <strong>' + tgl + '</strong>, kami yang bertanda tangan di bawah ini:<br>' +
+          '1. <strong>' + escapeHtml(p1Nama) + '</strong> (' + escapeHtml(p1Inst) + '), selanjutnya disebut <strong>PIHAK PERTAMA</strong>.<br>' +
+          '2. <strong>' + escapeHtml(p2Nama) + '</strong> (' + escapeHtml(p2Jabatan) + '), selanjutnya disebut <strong>PIHAK KEDUA</strong>.' +
+        '</div>' +
+        '<div class="print-clause">' +
+          'PIHAK PERTAMA menyerahkan kepada PIHAK KEDUA, dan PIHAK KEDUA menyatakan telah menerima dengan baik barang/aset hasil ' + jenis + ' dengan rincian sebagai berikut:' +
+        '</div>' +
+        '<table class="print-data-table">' +
+          '<thead><tr>' +
+            '<th style="width:6%;">No</th><th>Nama Barang</th><th>Spesifikasi / Merk</th><th style="width:14%;">Jumlah</th><th style="width:18%;">Kondisi Fisik</th>' +
+          '</tr></thead>' +
+          '<tbody>' + itemsHtml + '</tbody>' +
+        '</table>' +
+        '<div class="print-clause">' +
+          'Telah dilakukan pemeriksaan fisik dan uji fungsi terhadap barang-barang tersebut dengan hasil sesuai spesifikasi dan kondisi baik. Sejak ditandatanganinya Berita Acara ini, pengelolaan, pencatatan inventaris, serta pemeliharaan barang beralih sepenuhnya kepada PIHAK KEDUA.' +
+        '</div>' +
+        '<div class="sig-grid-3">' +
+          sigBlock('PIHAK PERTAMA<br>(Yang Menyerahkan)', p1Nama) +
+          sigBlock('PIHAK KEDUA<br>(Yang Menerima)', p2Nama) +
+          sigBlock('Mengetahui,<br>' + (PIMPINAN_JABATAN[inst] || 'Pimpinan'), pimpinanNama(inst)) +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  closeModal();
+  showPrintPreview(html, 'portrait');
+}
+
+// ---------------- DOKUMEN 4: BUKTI PEMINJAMAN (SURAT JALAN) ----------------
+async function printSuratPeminjaman(id_pinjam) {
+  try {
+    let p = (PEMINJAMAN_CACHE || []).find(function (x) { return x.id_pinjam === id_pinjam; });
+    if (!p) {
+      const res = await api('listPeminjaman', {});
+      PEMINJAMAN_CACHE = res.data;
+      p = (PEMINJAMAN_CACHE || []).find(function (x) { return x.id_pinjam === id_pinjam; });
+    }
+    if (!p) { toast('Data peminjaman tidak ditemukan.', true); return; }
+
+    const inst = roomInstitusi(p.ruangan_asal) || 'SMP';
+    const noSurat = generateNoSurat('PINJAM', inst);
+
+    const html =
+      '<div class="print-page portrait">' + printBgImage(inst) +
+        '<div class="print-content">' +
+          '<div class="print-title">SURAT BUKTI PEMINJAMAN ASET (SURAT JALAN SARPRAS)</div>' +
+          '<div style="text-align:center;font-size:12px;margin:-12px 0 16px;color:#333;">Nomor: ' + noSurat + '</div>' +
+          '<div class="print-meta-grid">' +
+            '<div class="print-meta-item"><span class="print-meta-k">ID Transaksi</span>: ' + p.id_pinjam + '</div>' +
+            '<div class="print-meta-item"><span class="print-meta-k">Status Pinjam</span>: ' + p.status.toUpperCase() + '</div>' +
+            '<div class="print-meta-item"><span class="print-meta-k">Nama Peminjam</span>: <strong>' + escapeHtml(p.nama_peminjam) + '</strong></div>' +
+            '<div class="print-meta-item"><span class="print-meta-k">Keperluan</span>: ' + escapeHtml(p.keperluan || '-') + '</div>' +
+            '<div class="print-meta-item"><span class="print-meta-k">Tanggal Pinjam</span>: ' + fmtDate(p.tanggal_pinjam) + '</div>' +
+            '<div class="print-meta-item"><span class="print-meta-k">Batas Pengembalian</span>: <strong>' + fmtDate(p.rencana_kembali) + '</strong></div>' +
+          '</div>' +
+          '<div class="print-subtitle">Daftar Barang yang Dipinjam:</div>' +
+          '<table class="print-data-table">' +
+            '<thead><tr>' +
+              '<th>Nomor Inventaris</th><th>Nama Barang</th><th>Spesifikasi</th><th>Ruangan Asal</th><th>Lokasi Penggunaan</th><th>Kondisi Awal</th>' +
+            '</tr></thead>' +
+            '<tbody><tr>' +
+              '<td class="mono">' + p.nomor_inventaris + '</td>' +
+              '<td><strong>' + escapeHtml(p.jenis_barang) + '</strong></td>' +
+              '<td>' + escapeHtml(p.spesifikasi || '-') + '</td>' +
+              '<td>' + roomName(p.ruangan_asal) + '</td>' +
+              '<td>' + roomName(p.ruangan_tujuan) + '</td>' +
+              '<td>' + p.kondisi_saat_pinjam + '</td>' +
+            '</tr></tbody>' +
+          '</table>' +
+          '<div class="print-clause">' +
+            '<strong>PAKTA INTEGRITAS & KETENTUAN PEMINJAMAN:</strong>' +
+            '<ol>' +
+              '<li>Peminjam bertanggung jawab penuh atas kebersihan, keamanan, dan keutuhan barang selama masa peminjaman.</li>' +
+              '<li>Barang hanya digunakan untuk keperluan resmi institusi sesuai yang diajukan dan tidak diperkenankan dipindahtangankan kepada pihak lain.</li>' +
+              '<li>Apabila terjadi kerusakan atau kehilangan akibat kelalaian pemakaian, peminjam wajib memperbaiki atau mengganti sesuai standar unit.</li>' +
+              '<li>Wajib mengembalikan barang tepat waktu sebelum tanggal batas pengembalian berakhir.</li>' +
+            '</ol>' +
+          '</div>' +
+          '<div class="sig-grid-3">' +
+            sigBlock('Peminjam / Pemohon', p.nama_peminjam) +
+            sigBlock('Petugas yang Menyerahkan', p.dicatat_oleh) +
+            sigBlock('Mengetahui,<br>Penanggung Jawab Sarpras', penanggungJawabNama(inst)) +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    showPrintPreview(html, 'portrait');
+  } catch (err) { toast(err.message, true); }
+}
+
+// ---------------- DOKUMEN 5: BERITA ACARA STOCK OPNAME ----------------
+async function printBeritaAcaraOpname(institusi) {
+  try {
+    const res = await api('dashboardSummary', {});
+    const s = res.data;
+    const inst = institusi || STATE.user.institusi || 'SMP';
+    const noSurat = generateNoSurat('BA-OPNAME', inst);
+    const today = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    const siklusBulan = s.siklus_validasi_bulan || 3;
+    const validCount = Math.max(0, (s.total_barang || 0) - (s.barang_perlu_validasi || 0));
+    const pct = s.progres_validasi_pct !== undefined ? s.progres_validasi_pct : 100;
+
+    const html =
+      '<div class="print-page portrait">' + printBgImage(inst) +
+        '<div class="print-content">' +
+          '<div class="print-title">BERITA ACARA HASIL AUDIT FISIK (STOCK OPNAME) TRIWULAN</div>' +
+          '<div style="text-align:center;font-size:12px;margin:-12px 0 16px;color:#333;">Nomor: ' + noSurat + '</div>' +
+          '<div class="print-clause">' +
+            'Pada hari ini tanggal <strong>' + today + '</strong>, Tim Verifikasi dan Audit Fisik Sarana Prasarana telah melaksanakan kegiatan Stock Opname fisik berkala (siklus ' + siklusBulan + ' bulan) terhadap seluruh inventaris aset di lingkungan <strong>' + (PIMPINAN_JABATAN[inst] ? PIMPINAN_JABATAN[inst].replace('Kepala ', '') + ' DAFI' : 'DAFI') + '</strong>.' +
+          '</div>' +
+          '<div class="print-subtitle">1. Ringkasan Hasil Verifikasi Fisik Aset:</div>' +
+          '<table class="print-data-table">' +
+            '<thead><tr><th>Indikator Pemeriksaan</th><th style="width:25%;">Jumlah Satuan</th><th>Keterangan</th></tr></thead>' +
+            '<tbody>' +
+              '<tr><td>Total Aset Terdaftar di Sistem</td><td class="num"><strong>' + (s.total_barang || 0).toLocaleString('id-ID') + ' unit</strong></td><td>Akumulasi aset tercatat aktif</td></tr>' +
+              '<tr><td>Aset Tervalidasi Fisik (&le; ' + siklusBulan + ' Bulan)</td><td class="num" style="color:#16a34a;font-weight:600;">' + validCount.toLocaleString('id-ID') + ' unit</td><td>Sesuai keberadaan dan kondisi</td></tr>' +
+              '<tr><td>Aset Jatuh Tempo Validasi Ulang</td><td class="num" style="color:#d97706;font-weight:600;">' + (s.barang_perlu_validasi || 0).toLocaleString('id-ID') + ' unit</td><td>Perlu inspeksi ulang lapangan</td></tr>' +
+              '<tr><td>Tingkat Kepatuhan Audit (Progres)</td><td class="num"><strong>' + pct + '%</strong></td><td>Target akurasi minimal 90%</td></tr>' +
+              '<tr><td>Total Estimasi Nilai Perolehan Aset</td><td class="num" colspan="2"><strong>' + rupiah(s.total_nilai || 0) + '</strong></td></tr>' +
+            '</tbody>' +
+          '</table>' +
+          '<div class="print-subtitle">2. Komposisi Kondisi Fisik Barang:</div>' +
+          '<table class="print-data-table">' +
+            '<thead><tr><th>Status / Kondisi</th><th>Jumlah Unit</th><th>Persentase</th></tr></thead>' +
+            '<tbody>' +
+              '<tr><td>Barang Tersedia & Berfungsi Baik</td><td class="num">' + (s.tersedia || 0) + ' unit</td><td class="num">' + (((s.tersedia || 0) / (s.total_barang || 1)) * 100).toFixed(1) + '%</td></tr>' +
+              '<tr><td>Barang Sedang Dipinjam</td><td class="num">' + (s.dipinjam || 0) + ' unit</td><td class="num">' + (((s.dipinjam || 0) / (s.total_barang || 1)) * 100).toFixed(1) + '%</td></tr>' +
+              '<tr><td>Barang Rusak (Ringan / Berat)</td><td class="num">' + (s.rusak || 0) + ' unit</td><td class="num">' + (((s.rusak || 0) / (s.total_barang || 1)) * 100).toFixed(1) + '%</td></tr>' +
+              '<tr><td>Barang Menunggu Usulan Penghapusan</td><td class="num">' + (s.diusulkan_hapus || 0) + ' unit</td><td class="num">' + (((s.diusulkan_hapus || 0) / (s.total_barang || 1)) * 100).toFixed(1) + '%</td></tr>' +
+            '</tbody>' +
+          '</table>' +
+          '<div class="print-clause">' +
+            '<strong>Kesimpulan & Tindak Lanjut:</strong><br>' +
+            'Seluruh data hasil verifikasi fisik telah dicocokkan dengan Kartu Inventaris Ruangan (KIR) masing-masing ruangan. Barang-barang yang mengalami kerusakan direkomendasikan segera dijadwalkan perawatan berkala atau diajukan peremajaan demi kelancaran kegiatan belajar mengajar.' +
+          '</div>' +
+          '<div class="sig-grid-3">' +
+            sigBlock('Tim Auditor Fisik 1', STATE.user.nama || 'Petugas Sarpras') +
+            sigBlock('Penanggung Jawab Sarpras', penanggungJawabNama(inst)) +
+            sigBlock('Mengetahui / Mengesahkan,<br>' + (PIMPINAN_JABATAN[inst] || 'Pimpinan'), pimpinanNama(inst)) +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    showPrintPreview(html, 'portrait');
   } catch (err) { toast(err.message, true); }
 }
