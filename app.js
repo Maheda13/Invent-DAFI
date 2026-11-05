@@ -998,8 +998,20 @@ async function handleFotoFile(file, zone, hidden, kategori) {
 }
  * ============================================================== */
 
-function barangForm(data) {
+function barangForm(data, lockRoomCode) {
   data = data || {};
+  const lockedBadge = lockRoomCode ? ' <span class="badge badge-valid" style="font-size:11px;margin-left:6px;">Terkunci di KIR</span>' : '';
+  const roomFieldHtml = lockRoomCode ?
+    '<label>Ruangan' + lockedBadge +
+      '<select id="f-ruangan" disabled style="background:#f8fafc;cursor:not-allowed;">' + ruanganOptions(lockRoomCode) + '</select>' +
+      '<input type="hidden" id="f-ruangan-locked" value="' + escapeHtml(lockRoomCode) + '">' +
+    '</label>' :
+    '<label>Ruangan<select id="f-ruangan">' + ruanganOptions(data.kode_ruangan) + '</select></label>';
+
+  const cancelBtnHtml = lockRoomCode ?
+    '<button type="button" class="btn-secondary" onclick="openKirEditor(\'' + escapeHtml(lockRoomCode) + '\')">' + iconLabel('xCircle', 'Kembali ke KIR') + '</button>' :
+    '<button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>';
+
   return '<form id="form-barang">' +
     '<label>Golongan Barang<select id="f-golongan">' + golonganOptions(data.golongan_barang) + '</select></label>' +
     '<label>Jenis Barang<select id="f-jenis">' +
@@ -1019,10 +1031,10 @@ function barangForm(data) {
       ['baik', 'rusak ringan', 'rusak berat'].map(function (k) {
         return '<option value="' + k + '"' + (data.kondisi === k ? ' selected' : '') + '>' + k + '</option>';
       }).join('') + '</select></label>' +
-    '<label>Ruangan<select id="f-ruangan">' + ruanganOptions(data.kode_ruangan) + '</select></label>' +
+    roomFieldHtml +
     '<label>Keterangan<textarea id="f-ket">' + (data.keterangan || '') + '</textarea></label>' +
     '<div class="modal-footer">' +
-      '<button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+      cancelBtnHtml +
       '<button type="submit" class="btn-primary" style="width:auto;padding:9px 18px;">' + iconLabel('check', 'Simpan') + '</button>' +
     '</div></form>';
 }
@@ -1054,10 +1066,12 @@ function editBarang(nomorInventaris) {
   bindBarangFormSubmit(nomorInventaris);
 }
 
-function bindBarangFormSubmit(nomorInventaris) {
+function bindBarangFormSubmit(nomorInventaris, onSuccess) {
   document.getElementById('form-barang').addEventListener('submit', async function (e) {
     e.preventDefault();
     try {
+      const lockedEl = document.getElementById('f-ruangan-locked');
+      const kodeRuanganVal = lockedEl ? lockedEl.value : document.getElementById('f-ruangan').value;
       const res = await api('saveBarang', {
         nomor_inventaris: nomorInventaris || undefined,
         golongan_barang: document.getElementById('f-golongan').value,
@@ -1071,7 +1085,7 @@ function bindBarangFormSubmit(nomorInventaris) {
         harga: rawNumber(document.getElementById('f-harga')),
         no_bukti_nota: document.getElementById('f-bukti').value,
         kondisi: document.getElementById('f-kondisi').value,
-        kode_ruangan: document.getElementById('f-ruangan').value,
+        kode_ruangan: kodeRuanganVal,
         keterangan: document.getElementById('f-ket').value
       });
       closeModal();
@@ -1080,7 +1094,11 @@ function bindBarangFormSubmit(nomorInventaris) {
       } else {
         toast('Barang berhasil disimpan.');
       }
-      loadBarang(STATE.barangPage);
+      if (typeof onSuccess === 'function') {
+        onSuccess(res);
+      } else {
+        loadBarang(STATE.barangPage);
+      }
     } catch (err) { toast(err.message, true); }
   });
 }
@@ -1784,9 +1802,18 @@ async function openKirEditor(kodeRuangan) {
           '</div>' +
         '</div>' +
         '<div style="text-align:center;padding:50px 20px;color:#64748b;background:#f8fafc;border-radius:var(--radius);border:1px dashed #cbd5e1;margin-top:14px;">' +
-          '<p style="font-size:15px;font-weight:600;margin:0 0 6px;">Belum Ada Barang di Ruangan Ini</p>' +
-          '<p style="font-size:13px;margin:0 0 16px;">Ruangan ini belum memiliki inventaris aset terdaftar.</p>' +
-          '<button type="button" class="btn-secondary" onclick="closeModal()">Tutup</button>' +
+          '<div style="font-size:36px;color:#94a3b8;margin-bottom:8px;">' + icon('archive', 36) + '</div>' +
+          '<p style="font-size:15px;font-weight:600;margin:0 0 6px;color:#1e293b;">Belum Ada Barang di Ruangan Ini</p>' +
+          '<p style="font-size:13px;margin:0 0 18px;">Ruangan ini belum memiliki inventaris aset terdaftar.</p>' +
+          '<div style="display:flex;gap:10px;justify-content:center;align-items:center;">' +
+            (STATE.user.role !== 'keuangan' ?
+              '<button type="button" class="btn-primary" onclick="openAddBarangToKir(\'' + escapeHtml(kodeRuangan) + '\')">' +
+                iconLabel('plus', 'Tambah Barang ke Ruangan Ini') +
+              '</button>' : '') +
+            '<button type="button" class="btn-secondary" onclick="closeModal()">' +
+              iconLabel('xCircle', 'Tutup') +
+            '</button>' +
+          '</div>' +
         '</div>' +
       '</div>';
       openModal('Kartu Inventaris Ruangan (KIR) — ' + namaRuangan, emptyHtml, 'modal-xl');
@@ -1842,6 +1869,12 @@ async function openKirEditor(kodeRuangan) {
             'value="' + (b.keterangan ? escapeHtml(b.keterangan) : '') + '" ' +
             'placeholder="Catatan">' +
         '</td>' +
+        '<td style="text-align:center;width:45px;">' +
+          (STATE.user.role !== 'keuangan' ?
+            '<button type="button" class="btn-row-del" onclick="hapusBarangDariKir(\'' + escapeHtml(b.nomor_inventaris) + '\',\'' + escapeHtml(kodeRuangan) + '\',\'' + escapeHtml(b.jenis_barang).replace(/'/g, "\\'") + '\')" title="Keluarkan atau Hapus Barang Ini">' +
+              icon('trash', 13) +
+            '</button>' : '') +
+        '</td>' +
       '</tr>';
     }).join('');
 
@@ -1885,20 +1918,26 @@ async function openKirEditor(kodeRuangan) {
         '<button type="button" class="btn-primary btn-sm" onclick="validasiSemuaBarangRuangan(\'' + kodeRuangan + '\')" title="Tandai seluruh barang di ruangan ini telah diperiksa fisik dan reset siklus 3 bulan">' +
           iconLabel('check', 'Validasi Ruangan Ini (Reset 3 Bulan)') +
         '</button>' +
+        (STATE.user.role !== 'keuangan' ?
+          '<div style="border-left:1px solid #cbd5e1;height:24px;margin:0 4px;"></div>' +
+          '<button type="button" class="btn-primary btn-sm" onclick="openAddBarangToKir(\'' + escapeHtml(kodeRuangan) + '\')" title="Tambah barang baru atau masukkan barang yang sudah ada ke ruangan ini">' +
+            iconLabel('plus', 'Tambah Barang') +
+          '</button>' : '') +
       '</div>' +
 
       '<div class="kir-table-wrap">' +
         '<table class="kir-table" id="table-kir-editor">' +
           '<thead><tr>' +
-            '<th>No.</th>' +
-            '<th>No. Inventaris</th>' +
-            '<th>Jenis Barang</th>' +
+            '<th style="width:35px;text-align:center;">No.</th>' +
+            '<th style="width:145px;">No. Inventaris</th>' +
+            '<th style="width:160px;">Jenis Barang</th>' +
             '<th>Merk / Spesifikasi</th>' +
-            '<th>Kondisi</th>' +
-            '<th>Harga (Rp)</th>' +
-            '<th>Sumber Dana</th>' +
-            '<th>Status</th>' +
-            '<th>Keterangan</th>' +
+            '<th style="width:125px;">Kondisi</th>' +
+            '<th style="width:130px;">Harga (Rp)</th>' +
+            '<th style="width:110px;">Sumber Dana</th>' +
+            '<th style="width:120px;">Status</th>' +
+            '<th style="width:130px;">Keterangan</th>' +
+            '<th style="width:45px;text-align:center;">Aksi</th>' +
           '</tr></thead>' +
           '<tbody>' + rowsHtml + '</tbody>' +
         '</table>' +
@@ -2046,6 +2085,254 @@ async function saveKirChanges(kodeRuangan) {
       saveBtn.disabled = false;
       saveBtn.innerHTML = iconLabel('check', 'Coba Simpan Lagi');
     }
+  }
+}
+
+// ---------------- KELOLA BARANG LANGSUNG DARI KIR RUANGAN (TAMBAH & HAPUS) ----------------
+
+function openAddBarangToKir(kodeRuangan) {
+  const ruangan = (STATE.ruanganList || []).find(function (r) { return r.kode_ruangan === kodeRuangan; });
+  const namaRuangan = ruangan ? ruangan.nama_ruangan : kodeRuangan;
+  const html =
+    '<div style="padding:4px 0;">' +
+      '<p style="font-size:13.5px;color:#475569;margin:0 0 14px;">Pilih metode penambahan barang untuk ruangan <strong>' + escapeHtml(namaRuangan) + '</strong> (' + escapeHtml(kodeRuangan) + '):</p>' +
+      '<div class="doc-hub-grid" style="grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));gap:14px;">' +
+        '<div class="doc-hub-card" onclick="openBarangFormForKir(\'' + escapeHtml(kodeRuangan) + '\')">' +
+          '<div class="doc-hub-icon">' + icon('plus', 22) + '</div>' +
+          '<div class="doc-hub-title">Registrasi Barang Baru</div>' +
+          '<div class="doc-hub-desc">Input barang baru hasil pengadaan/pembelian baru. Nomor inventaris dibuat otomatis dan langsung ditempatkan di ruangan ini.</div>' +
+        '</div>' +
+        '<div class="doc-hub-card" onclick="openPindahBarangKeKir(\'' + escapeHtml(kodeRuangan) + '\')">' +
+          '<div class="doc-hub-icon">' + icon('swap', 22) + '</div>' +
+          '<div class="doc-hub-title">Pindahkan Barang yang Ada</div>' +
+          '<div class="doc-hub-desc">Pilih aset yang sudah terdaftar di sistem (dari gudang atau ruangan lain) untuk dialokasikan masuk ke ruangan ini.</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="modal-footer" style="margin-top:18px;">' +
+        '<button type="button" class="btn-secondary" onclick="openKirEditor(\'' + escapeHtml(kodeRuangan) + '\')">' +
+          iconLabel('xCircle', 'Kembali ke KIR') +
+        '</button>' +
+      '</div>' +
+    '</div>';
+  openModal('Tambah Barang — ' + namaRuangan, html, 'modal-lg');
+}
+
+function openBarangFormForKir(kodeRuangan) {
+  const ruangan = (STATE.ruanganList || []).find(function (r) { return r.kode_ruangan === kodeRuangan; });
+  const namaRuangan = ruangan ? ruangan.nama_ruangan : kodeRuangan;
+  openModal('Tambah Barang Baru ke ' + namaRuangan, barangForm({ kode_ruangan: kodeRuangan }, kodeRuangan));
+  bindGolonganCascade();
+  attachRupiahMask(document.getElementById('f-harga'));
+  bindBarangFormSubmit(null, function () {
+    loadBarang(STATE.barangPage);
+    openKirEditor(kodeRuangan);
+  });
+}
+
+async function openPindahBarangKeKir(kodeRuangan) {
+  const ruangan = (STATE.ruanganList || []).find(function (r) { return r.kode_ruangan === kodeRuangan; });
+  const namaRuangan = ruangan ? ruangan.nama_ruangan : kodeRuangan;
+
+  openModal('Pindahkan Barang ke ' + namaRuangan, '<div style="text-align:center;padding:30px;color:#64748b;">Memuat data barang yang dapat dipindahkan...</div>', 'modal-lg');
+
+  try {
+    const res = await api('listBarang', { pageSize: 9999, status: '' });
+    const all = res.data || [];
+    // Ambil barang yang bukan dari ruangan ini dan belum dihapus
+    const candidates = all.filter(function (b) {
+      return b.kode_ruangan !== kodeRuangan && b.status !== 'dihapus';
+    });
+    window._pindahKirCandidates = candidates;
+    window._pindahKirKodeRuangan = kodeRuangan;
+
+    renderPindahKirModalContent(candidates, kodeRuangan, namaRuangan, '');
+  } catch (err) {
+    toast(err.message, true);
+    openKirEditor(kodeRuangan);
+  }
+}
+
+function renderPindahKirModalContent(candidates, kodeRuangan, namaRuangan, query) {
+  const q = String(query || '').trim().toLowerCase();
+  const filtered = q
+    ? candidates.filter(function (b) {
+        return (b.nomor_inventaris && b.nomor_inventaris.toLowerCase().indexOf(q) !== -1) ||
+               (b.jenis_barang && b.jenis_barang.toLowerCase().indexOf(q) !== -1) ||
+               (b.spesifikasi && b.spesifikasi.toLowerCase().indexOf(q) !== -1) ||
+               (roomName(b.kode_ruangan).toLowerCase().indexOf(q) !== -1);
+      })
+    : candidates;
+
+  const listRows = filtered.slice(0, 50).map(function (b) {
+    const roomAsal = roomName(b.kode_ruangan) || b.kode_ruangan || 'Tanpa Ruangan';
+    return '<div class="pindah-item-card" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;gap:12px;">' +
+      '<div style="min-width:0;flex:1;">' +
+        '<div style="font-size:13px;font-weight:600;color:#1e293b;">' +
+          escapeHtml(b.jenis_barang) +
+          ' <span class="mono" style="font-size:11.5px;color:#64748b;font-weight:normal;">(' + escapeHtml(b.nomor_inventaris) + ')</span>' +
+        '</div>' +
+        '<div style="font-size:11.5px;color:#64748b;margin-top:2px;">' +
+          'Lokasi Asal: <strong>' + escapeHtml(roomAsal) + '</strong>' +
+          (b.spesifikasi ? ' • ' + escapeHtml(b.spesifikasi) : '') +
+          ' • Kondisi: <span style="text-transform:capitalize;">' + escapeHtml(b.kondisi || 'baik') + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<button type="button" class="btn-primary btn-sm" onclick="eksekusiPindahBarangKeKir(\'' + escapeHtml(b.nomor_inventaris) + '\',\'' + escapeHtml(kodeRuangan) + '\')">' +
+        iconLabel('swap', 'Pindahkan ke Sini') +
+      '</button>' +
+    '</div>';
+  }).join('');
+
+  const bodyHtml =
+    '<div style="display:flex;flex-direction:column;gap:12px;">' +
+      '<div style="display:flex;gap:10px;align-items:center;">' +
+        '<input type="text" id="pindah-kir-search" class="kir-input" placeholder="Cari nomor inventaris, nama barang, atau ruangan asal..." value="' + escapeHtml(query || '') + '" oninput="onPindahKirSearchInput(this.value)" style="flex:1;padding:8px 12px!important;font-size:13px!important;">' +
+      '</div>' +
+      '<div style="font-size:12px;color:#64748b;">Menampilkan ' + filtered.length + ' barang yang dapat dialihkan ke <strong>' + escapeHtml(namaRuangan) + '</strong>:</div>' +
+      '<div id="pindah-kir-container" style="max-height:42vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:4px;">' +
+        (filtered.length ? listRows : '<div style="text-align:center;padding:30px;color:#94a3b8;font-size:13px;">Tidak ada barang yang cocok dengan pencarian</div>') +
+      '</div>' +
+      '<div class="modal-footer" style="margin-top:10px;">' +
+        '<button type="button" class="btn-secondary" onclick="openAddBarangToKir(\'' + escapeHtml(kodeRuangan) + '\')">' +
+          iconLabel('undo', 'Kembali') +
+        '</button>' +
+        '<button type="button" class="btn-secondary" onclick="openKirEditor(\'' + escapeHtml(kodeRuangan) + '\')">' +
+          iconLabel('xCircle', 'Tutup & Kembali ke KIR') +
+        '</button>' +
+      '</div>' +
+    '</div>';
+
+  openModal('Pindahkan Barang ke ' + namaRuangan, bodyHtml, 'modal-lg');
+  const input = document.getElementById('pindah-kir-search');
+  if (input && query) {
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+}
+
+function onPindahKirSearchInput(q) {
+  const candidates = window._pindahKirCandidates || [];
+  const kodeRuangan = window._pindahKirKodeRuangan;
+  const ruangan = (STATE.ruanganList || []).find(function (r) { return r.kode_ruangan === kodeRuangan; });
+  const namaRuangan = ruangan ? ruangan.nama_ruangan : kodeRuangan;
+  renderPindahKirModalContent(candidates, kodeRuangan, namaRuangan, q);
+}
+
+async function eksekusiPindahBarangKeKir(nomorInventaris, kodeRuanganTujuan) {
+  try {
+    const candidates = window._pindahKirCandidates || [];
+    let b = candidates.find(function (it) { return it.nomor_inventaris === nomorInventaris; });
+    if (!b) {
+      const resSingle = await api('getBarang', { nomor_inventaris: nomorInventaris });
+      b = resSingle.data;
+    }
+    if (!b) throw new Error('Data barang tidak ditemukan.');
+
+    const payload = Object.assign({}, b, { kode_ruangan: kodeRuanganTujuan });
+    await api('saveBarang', payload);
+    const ruangan = (STATE.ruanganList || []).find(function (r) { return r.kode_ruangan === kodeRuanganTujuan; });
+    const namaRuangan = ruangan ? ruangan.nama_ruangan : kodeRuanganTujuan;
+    toast('Barang ' + nomorInventaris + ' berhasil dialokasikan ke ' + namaRuangan + '.');
+    loadBarang(STATE.barangPage);
+    openKirEditor(kodeRuanganTujuan);
+  } catch (err) {
+    toast('Gagal memindahkan barang: ' + err.message, true);
+  }
+}
+
+function hapusBarangDariKir(nomorInventaris, kodeRuangan, jenisBarang) {
+  const ruangan = (STATE.ruanganList || []).find(function (r) { return r.kode_ruangan === kodeRuangan; });
+  const namaRuangan = ruangan ? ruangan.nama_ruangan : kodeRuangan;
+
+  // Ruangan tujuan lain untuk pengalihan (kecuali ruangan ini)
+  const otherRooms = (STATE.ruanganList || []).filter(function (r) { return r.kode_ruangan !== kodeRuangan; });
+  const roomOpts = otherRooms.map(function (r) {
+    const isGudang = (r.nama_ruangan && r.nama_ruangan.toLowerCase().indexOf('gudang') !== -1) ||
+                     (r.kode_ruangan && r.kode_ruangan.toLowerCase().indexOf('gudang') !== -1);
+    return '<option value="' + escapeHtml(r.kode_ruangan) + '"' + (isGudang ? ' selected' : '') + '>' +
+      escapeHtml(r.nama_ruangan) + ' (' + escapeHtml(r.kode_ruangan) + ')' +
+    '</option>';
+  }).join('');
+
+  const isAdmin = STATE.user.role === 'admin';
+
+  const bodyHtml =
+    '<div style="padding:4px 0;">' +
+      '<p style="font-size:13.5px;color:#1e293b;margin:0 0 14px;">' +
+        'Pilih tindakan untuk barang <strong>' + escapeHtml(jenisBarang) + '</strong> (<span class="mono">' + escapeHtml(nomorInventaris) + '</span>) di ruangan <strong>' + escapeHtml(namaRuangan) + '</strong>:' +
+      '</p>' +
+
+      '<div style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:14px;">' +
+        '<div style="font-weight:600;font-size:13px;color:#1e293b;margin-bottom:4px;display:flex;align-items:center;gap:6px;">' +
+          icon('swap', 15) + '<span>Keluarkan & Alihkan ke Ruangan Lain (Misal: Gudang)</span>' +
+        '</div>' +
+        '<p style="font-size:12px;color:#64748b;margin:0 0 10px;">Barang dilepaskan dari KIR ini dan dipindahkan ke ruangan lain. Data aset & riwayat tetap aman tersimpan di SIDAFI.</p>' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+          '<label style="margin:0;font-size:12px;font-weight:600;color:#334155;">Ruangan Tujuan:</label>' +
+          '<select id="alih-kir-target" class="kir-select" style="min-width:220px;padding:7px 10px!important;">' +
+            roomOpts +
+          '</select>' +
+          '<button type="button" class="btn-primary btn-sm" onclick="eksekusiAlihRuanganKir(\'' + escapeHtml(nomorInventaris) + '\',\'' + escapeHtml(kodeRuangan) + '\')">' +
+            iconLabel('check', 'Alihkan Sekarang') +
+          '</button>' +
+        '</div>' +
+      '</div>' +
+
+      (isAdmin ?
+        '<div style="background:#fffbfb;border:1px solid #fecaca;border-radius:8px;padding:16px;margin-bottom:14px;">' +
+          '<div style="font-weight:600;font-size:13px;color:#dc2626;margin-bottom:4px;display:flex;align-items:center;gap:6px;">' +
+            icon('trash', 15) + '<span>Hapus Permanen dari Sistem (Khusus Draf / Salah Input)</span>' +
+          '</div>' +
+          '<p style="font-size:12px;color:#64748b;margin:0 0 10px;">Hanya gunakan ini jika barang merupakan draf atau salah input. Jika barang rusak/tidak terpakai, gunakan menu Usulan Penghapusan.</p>' +
+          '<button type="button" class="btn-primary btn-sm" style="background:#dc2626;border-color:#dc2626;" onclick="eksekusiHapusPermanenKir(\'' + escapeHtml(nomorInventaris) + '\',\'' + escapeHtml(kodeRuangan) + '\')">' +
+            iconLabel('trash', 'Hapus Permanen') +
+          '</button>' +
+        '</div>' : '') +
+
+      '<div class="modal-footer" style="margin-top:14px;">' +
+        '<button type="button" class="btn-secondary" onclick="openKirEditor(\'' + escapeHtml(kodeRuangan) + '\')">' +
+          iconLabel('xCircle', 'Batal & Kembali ke KIR') +
+        '</button>' +
+      '</div>' +
+    '</div>';
+
+  openModal('Kelola / Hapus Barang — ' + nomorInventaris, bodyHtml, 'modal-lg');
+}
+
+async function eksekusiAlihRuanganKir(nomorInventaris, kodeRuanganLama) {
+  const targetSelect = document.getElementById('alih-kir-target');
+  if (!targetSelect) return;
+  const targetRoomCode = targetSelect.value;
+  if (!targetRoomCode) {
+    toast('Pilih ruangan tujuan terlebih dahulu.', true);
+    return;
+  }
+  try {
+    const resSingle = await api('getBarang', { nomor_inventaris: nomorInventaris });
+    const b = resSingle.data;
+    if (!b) throw new Error('Data barang tidak ditemukan.');
+    const payload = Object.assign({}, b, { kode_ruangan: targetRoomCode });
+    await api('saveBarang', payload);
+    const targetRoomName = roomName(targetRoomCode) || targetRoomCode;
+    toast('Barang ' + nomorInventaris + ' berhasil dialihkan ke ' + targetRoomName + '.');
+    loadBarang(STATE.barangPage);
+    openKirEditor(kodeRuanganLama);
+  } catch (err) {
+    toast('Gagal mengalihkan barang: ' + err.message, true);
+  }
+}
+
+async function eksekusiHapusPermanenKir(nomorInventaris, kodeRuangan) {
+  if (!confirm('Apakah Anda yakin ingin menghapus data ' + nomorInventaris + ' secara PERMANEN dari sistem?\n\nPERINGATAN: Tindakan ini tidak dapat dibatalkan.')) {
+    return;
+  }
+  try {
+    await api('deleteBarangDraft', { nomor_inventaris: nomorInventaris });
+    toast('Barang ' + nomorInventaris + ' berhasil dihapus dari sistem.');
+    loadBarang(STATE.barangPage);
+    openKirEditor(kodeRuangan);
+  } catch (err) {
+    toast('Gagal menghapus barang: ' + err.message, true);
   }
 }
 
