@@ -2,7 +2,7 @@
 // KONFIGURASI - ganti dengan URL Web App Apps Script Anda
 // ============================================================
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbwBLPSChexiGY566Z7xxd1-eRcgPrZzji2zlXEc-ZPRHSxakf3eSiqs5EGqCW_IhMbe/exec'
+  API_URL: 'https://script.google.com/macros/s/AKfycbxdLWKDp1r34CNrZjEyCDK2gV6D8JYIC7ZDDNmUuOeLGczAN9JFTnD4RCJVfrQgLYJU/exec'
 };
 
 // ============================================================
@@ -63,7 +63,11 @@ const ICONS = {
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   menu: '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
   bell: '<path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>',
-  userCircle: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="9" r="3"/><path d="M6.5 19a6 6 0 0111 0"/>'
+  userCircle: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="9" r="3"/><path d="M6.5 19a6 6 0 0111 0"/>',
+  search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  fileText: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>',
+  upload: '<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  download: '<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'
 };
 
 function icon(name, size) {
@@ -173,7 +177,18 @@ document.getElementById('btn-logout').addEventListener('click', async function (
 function initNavIcons() {
   document.querySelectorAll('[data-icon]').forEach(function (el) {
     if (el.dataset.iconApplied) return;
-    el.innerHTML = icon(el.dataset.icon) + '<span>' + el.textContent + '</span>';
+    const iconName = el.dataset.icon;
+    const svg = icon(iconName);
+    const kbd = el.querySelector('kbd');
+    let label = el.textContent.trim();
+    if (kbd) {
+      label = label.replace(/Ctrl\+K/g, '').trim();
+      el.innerHTML = svg + '<span>' + escapeHtml(label) + '</span> ' + kbd.outerHTML;
+    } else if (label) {
+      el.innerHTML = svg + '<span>' + escapeHtml(label) + '</span>';
+    } else {
+      el.innerHTML = svg;
+    }
     el.dataset.iconApplied = '1';
   });
 }
@@ -695,19 +710,19 @@ function renderBarangTableRows() {
 
     let badgeKelengkapan = '';
     if (noMerk && noHarga) {
-      badgeKelengkapan = ' <span class="badge badge-warning" title="Merk/Spesifikasi & Harga perolehan belum diisi">⚠️ Spek & Harga Kosong</span>';
+      badgeKelengkapan = ' <span class="badge badge-warning" title="Merk/Spesifikasi & Harga perolehan belum diisi">Spek & Harga Kosong</span>';
     } else if (noMerk) {
-      badgeKelengkapan = ' <span class="badge badge-warning" title="Merk/Spesifikasi belum diisi">⚠️ Belum Ada Merk</span>';
+      badgeKelengkapan = ' <span class="badge badge-warning" title="Merk/Spesifikasi belum diisi">Belum Ada Merk</span>';
     } else if (noHarga) {
-      badgeKelengkapan = ' <span class="badge badge-warning" title="Harga perolehan belum diisi">⚠️ Harga Rp 0</span>';
+      badgeKelengkapan = ' <span class="badge badge-warning" title="Harga perolehan belum diisi">Harga Rp 0</span>';
     }
 
     let badgeValidasi = '';
     if (b.is_overdue) {
       const hari = b.hari_sejak_validasi || 0;
-      badgeValidasi = ' <span class="badge badge-overdue" title="Terakhir divalidasi: ' + fmtDate(b.terakhir_divalidasi) + ' (' + hari + ' hari lalu)">⏰ Perlu Validasi</span>';
+      badgeValidasi = ' <span class="badge badge-overdue" title="Terakhir divalidasi: ' + fmtDate(b.terakhir_divalidasi) + ' (' + hari + ' hari lalu)">Perlu Validasi</span>';
     } else {
-      badgeValidasi = ' <span class="badge badge-valid" title="Terakhir divalidasi: ' + fmtDate(b.terakhir_divalidasi) + '">✅ Tervalidasi</span>';
+      badgeValidasi = ' <span class="badge badge-valid" title="Terakhir divalidasi: ' + fmtDate(b.terakhir_divalidasi) + '">Tervalidasi</span>';
     }
 
     const spekText = noMerk
@@ -876,7 +891,7 @@ async function loadBarang(page) {
     toast(err.message, true);
     const tbody = document.querySelector('#table-barang tbody');
     if (tbody) {
-      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#ef4444;padding:24px;">Gagal memuat data barang: ' + escapeHtml(err.message) + ' <br><button type="button" class="btn btn-sm btn-outline" style="margin-top:8px;" onclick="loadBarang(' + (page || 1) + ')">Coba Lagi</button></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#ef4444;padding:24px;">Gagal memuat data barang: ' + escapeHtml(err.message) + ' <br><button type="button" class="btn-secondary btn-sm" style="margin-top:8px;" onclick="loadBarang(' + (page || 1) + ')">' + iconLabel('undo', 'Coba Lagi') + '</button></td></tr>';
     }
   }
 }
@@ -1749,11 +1764,11 @@ async function openKirEditor(kodeRuangan) {
     let auditBadgeHtml = '';
     if (incompleteTotal > 0) {
       auditBadgeHtml = '<div class="kir-audit-badge alert" id="kir-audit-badge-status">' + icon('alertTriangle') +
-        ' <span>⚠️ ' + incompleteTotal + ' dari ' + items.length + ' barang belum lengkap (' +
+        ' <span>' + incompleteTotal + ' dari ' + items.length + ' barang belum lengkap (' +
         missingMerkCount + ' tanpa merk, ' + missingHargaCount + ' tanpa harga)</span></div>';
     } else {
       auditBadgeHtml = '<div class="kir-audit-badge good" id="kir-audit-badge-status">' + icon('check') +
-        ' <span>✅ Semua data barang (' + items.length + ' unit) lengkap!</span></div>';
+        ' <span>Semua data barang (' + items.length + ' unit) lengkap!</span></div>';
     }
 
     if (items.length === 0) {
@@ -1802,7 +1817,7 @@ async function openKirEditor(kodeRuangan) {
         '<td>' +
           '<input type="text" class="kir-input kir-input-spek ' + (noMerk ? 'empty-highlight' : '') + '" ' +
             'value="' + (b.spesifikasi ? escapeHtml(b.spesifikasi) : '') + '" ' +
-            'placeholder="⚠️ Masukkan merk / spek..." ' +
+            'placeholder="Masukkan merk / spek..." ' +
             'oninput="onKirInputChanged(this, \'spek\')">' +
         '</td>' +
         '<td style="width:125px;">' +
@@ -1811,7 +1826,7 @@ async function openKirEditor(kodeRuangan) {
         '<td style="width:130px;">' +
           '<input type="number" class="kir-input kir-input-harga ' + (noHarga ? 'empty-highlight' : '') + '" ' +
             'value="' + (b.harga ? Number(b.harga) : '') + '" ' +
-            'placeholder="⚠️ 0" min="0" ' +
+            'placeholder="0" min="0" ' +
             'oninput="onKirInputChanged(this, \'harga\')">' +
         '</td>' +
         '<td style="width:110px;">' +
@@ -1840,8 +1855,8 @@ async function openKirEditor(kodeRuangan) {
             '<span><strong>Total Barang:</strong> ' + items.length + ' item</span>' +
             '<span><strong>Siklus 3 Bulan:</strong> ' +
               (overdueInRoom > 0
-                ? '<span class="badge badge-overdue" style="font-size:11px;">⏰ ' + overdueInRoom + ' Perlu Validasi</span>'
-                : '<span class="badge badge-valid" style="font-size:11px;">✅ Tervalidasi</span>') +
+                ? '<span class="badge badge-overdue" style="font-size:11px;">Perlu Validasi (' + overdueInRoom + ')</span>'
+                : '<span class="badge badge-valid" style="font-size:11px;">Tervalidasi</span>') +
             '</span>' +
           '</div>' +
         '</div>' +
@@ -1849,7 +1864,7 @@ async function openKirEditor(kodeRuangan) {
       '</div>' +
 
       '<div class="kir-toolbar">' +
-        '<label>🔍 Filter Cepat:' +
+        '<label style="display:inline-flex;align-items:center;gap:6px;">' + icon('search', 14) + '<span>Filter Cepat:</span>' +
           '<input type="text" id="kir-table-search" placeholder="Cari barang / nomor..." oninput="filterKirTable(this.value)">' +
         '</label>' +
         '<div style="border-left:1px solid #cbd5e1;height:24px;margin:0 4px;"></div>' +
@@ -1859,7 +1874,7 @@ async function openKirEditor(kodeRuangan) {
             '<option value="rusak ringan">Rusak Ringan</option>' +
             '<option value="rusak berat">Rusak Berat</option>' +
           '</select>' +
-          '<button type="button" class="btn-sm btn-secondary" onclick="applyBatchKirCondition()">Terapkan</button>' +
+          '<button type="button" class="btn-secondary btn-sm" onclick="applyBatchKirCondition()">' + iconLabel('check', 'Terapkan') + '</button>' +
         '</label>' +
         '<div style="border-left:1px solid #cbd5e1;height:24px;margin:0 4px;"></div>' +
         '<label>' +
@@ -1867,8 +1882,8 @@ async function openKirEditor(kodeRuangan) {
           'Hanya tampilkan yang belum lengkap' +
         '</label>' +
         '<div style="border-left:1px solid #cbd5e1;height:24px;margin:0 4px;"></div>' +
-        '<button type="button" class="btn-sm btn-primary" onclick="validasiSemuaBarangRuangan(\'' + kodeRuangan + '\')" title="Tandai seluruh barang di ruangan ini telah diperiksa fisik dan reset siklus 3 bulan">' +
-          icon('check') + ' Validasi Ruangan Ini (Reset 3 Bulan)' +
+        '<button type="button" class="btn-primary btn-sm" onclick="validasiSemuaBarangRuangan(\'' + kodeRuangan + '\')" title="Tandai seluruh barang di ruangan ini telah diperiksa fisik dan reset siklus 3 bulan">' +
+          iconLabel('check', 'Validasi Ruangan Ini (Reset 3 Bulan)') +
         '</button>' +
       '</div>' +
 
@@ -1895,9 +1910,9 @@ async function openKirEditor(kodeRuangan) {
           ' Sekaligus tandai divalidasi hari ini (reset pengingat 3 bulan)' +
         '</label>' +
         '<div style="display:flex;gap:8px;">' +
-          '<button type="button" class="btn-secondary" onclick="closeModal()">Batal</button>' +
+          '<button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
           '<button type="button" class="btn-primary" id="btn-save-kir" onclick="saveKirChanges(\'' + kodeRuangan + '\')">' +
-            icon('check') + ' 💾 Simpan Perubahan KIR (' + items.length + ' Barang)' +
+            iconLabel('check', 'Simpan Perubahan KIR (' + items.length + ' Barang)') +
           '</button>' +
         '</div>' +
       '</div>' +
@@ -2029,7 +2044,7 @@ async function saveKirChanges(kodeRuangan) {
     toast('Gagal menyimpan KIR: ' + err.message, true);
     if (saveBtn) {
       saveBtn.disabled = false;
-      saveBtn.innerHTML = icon('check') + ' 💾 Coba Simpan Lagi';
+      saveBtn.innerHTML = iconLabel('check', 'Coba Simpan Lagi');
     }
   }
 }
@@ -2853,12 +2868,12 @@ function openImportWizard() {
         '<div class="import-zone-title">Pilih File CSV Data Lama Anda</div>' +
         '<div class="import-zone-desc">Format file yang didukung: <strong>.csv</strong> (pemisah koma atau titik koma).</div>' +
         '<div style="display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;">' +
-          '<label class="btn btn-primary" style="margin:0;cursor:pointer;">' +
-            icon('plus', 15) + '<span>Pilih File CSV</span>' +
+          '<label class="btn-primary" style="margin:0;cursor:pointer;">' +
+            icon('upload', 15) + '<span>Pilih File CSV</span>' +
             '<input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="handleCsvFileChange(this)">' +
           '</label>' +
-          '<button type="button" class="btn btn-outline" onclick="downloadCsvTemplate()">' +
-            icon('archive', 15) + '<span>Unduh Template CSV</span>' +
+          '<button type="button" class="btn-secondary" onclick="downloadCsvTemplate()">' +
+            icon('download', 15) + '<span>Unduh Template CSV</span>' +
           '</button>' +
         '</div>' +
       '</div>' +
@@ -2872,8 +2887,8 @@ function openImportWizard() {
         '</div>' +
         '<div>' +
           '<label style="font-weight:600;font-size:12px;display:block;margin-bottom:4px;">Nomor Inventaris Kosong:</label>' +
-          '<div style="font-size:12px;color:#475569;margin-top:8px;">' +
-            '✅ <em>Otomatis dibuatkan sesuai standar SIDAFI ({klasifikasi}.{tahun}.{urut})</em>' +
+          '<div style="font-size:12px;color:#475569;margin-top:8px;display:flex;align-items:center;gap:6px;">' +
+            icon('check', 14) + ' <em>Otomatis dibuatkan sesuai standar SIDAFI ({klasifikasi}.{tahun}.{urut})</em>' +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -3043,12 +3058,12 @@ function renderImportPreview(items, fileName) {
     let badgeHtml = '';
     if (!item._isValid) {
       rowClass = 'row-invalid';
-      badgeHtml = '<span class="badge badge-danger" title="' + escapeHtml(item._errors.join(', ')) + '">❌ ' + escapeHtml(item._errors[0]) + '</span>';
+      badgeHtml = '<span class="badge badge-danger" title="' + escapeHtml(item._errors.join(', ')) + '">' + escapeHtml(item._errors[0]) + '</span>';
     } else if (item._warnings.length > 0) {
       rowClass = 'row-warning';
-      badgeHtml = '<span class="badge badge-warning" title="' + escapeHtml(item._warnings.join(', ')) + '">⚠️ Perhatian</span>';
+      badgeHtml = '<span class="badge badge-warning" title="' + escapeHtml(item._warnings.join(', ')) + '">Perhatian</span>';
     } else {
-      badgeHtml = '<span class="badge badge-valid">✅ Valid</span>';
+      badgeHtml = '<span class="badge badge-valid">Valid</span>';
     }
 
     return '<tr class="' + rowClass + '">' +
@@ -3067,9 +3082,9 @@ function renderImportPreview(items, fileName) {
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
         '<div style="font-weight:600;font-size:13.5px;">Pratinjau Data: <span style="color:#475569;">' + escapeHtml(fileName) + ' (' + items.length + ' baris)</span></div>' +
         '<div class="import-summary-bar" style="margin:0;">' +
-          '<span class="import-stat-pill success">✅ ' + (readyCount + warningCount) + ' Siap Diimpor</span>' +
-          (warningCount > 0 ? '<span class="import-stat-pill warning">⚠️ ' + warningCount + ' Perlu Dilengkapi Nanti</span>' : '') +
-          (errorCount > 0 ? '<span class="import-stat-pill error">❌ ' + errorCount + ' Ditolak</span>' : '') +
+          '<span class="import-stat-pill success">' + (readyCount + warningCount) + ' Siap Diimpor</span>' +
+          (warningCount > 0 ? '<span class="import-stat-pill warning">' + warningCount + ' Perlu Dilengkapi Nanti</span>' : '') +
+          (errorCount > 0 ? '<span class="import-stat-pill error">' + errorCount + ' Ditolak</span>' : '') +
         '</div>' +
       '</div>' +
       '<div class="import-preview-wrap">' +
@@ -3124,27 +3139,27 @@ function openPusatDokumenModal() {
     '</div>' +
     '<div class="doc-hub-grid">' +
       '<div class="doc-hub-card" onclick="closeModal(); openModalSPPB();">' +
-        '<div class="doc-hub-icon">📝</div>' +
+        '<div class="doc-hub-icon">' + icon('edit', 22) + '</div>' +
         '<div class="doc-hub-title">Surat Pengajuan Pengadaan (SPPB)</div>' +
         '<div class="doc-hub-desc">Formulir usulan pembelian aset baru, estimasi anggaran, dan lembar disposisi pimpinan.</div>' +
       '</div>' +
       '<div class="doc-hub-card" onclick="closeModal(); openModalBAST();">' +
-        '<div class="doc-hub-icon">🤝</div>' +
+        '<div class="doc-hub-icon">' + icon('check', 22) + '</div>' +
         '<div class="doc-hub-title">Berita Acara Serah Terima (BAST)</div>' +
         '<div class="doc-hub-desc">Berita acara penerimaan barang dari vendor / rekanan atau serah terima hibah donatur.</div>' +
       '</div>' +
       '<div class="doc-hub-card" onclick="closeModal(); openBAPSelector();">' +
-        '<div class="doc-hub-icon">🗑️</div>' +
+        '<div class="doc-hub-icon">' + icon('trash', 22) + '</div>' +
         '<div class="doc-hub-title">Berita Acara Pemusnahan (BAP)</div>' +
         '<div class="doc-hub-desc">Surat berita acara resmi penghapusan dan pemusnahan aset yang disetujui.</div>' +
       '</div>' +
       '<div class="doc-hub-card" onclick="closeModal(); switchView(\'peminjaman\');">' +
-        '<div class="doc-hub-icon">📋</div>' +
+        '<div class="doc-hub-icon">' + icon('clipboard', 22) + '</div>' +
         '<div class="doc-hub-title">Surat Bukti Peminjaman (Surat Jalan)</div>' +
         '<div class="doc-hub-desc">Surat izin pinjam pakai barang sarpras lengkap dengan pakta integritas peminjam.</div>' +
       '</div>' +
       '<div class="doc-hub-card" onclick="closeModal(); printBeritaAcaraOpname();">' +
-        '<div class="doc-hub-icon">📊</div>' +
+        '<div class="doc-hub-icon">' + icon('printer', 22) + '</div>' +
         '<div class="doc-hub-title">Berita Acara Stock Opname Triwulan</div>' +
         '<div class="doc-hub-desc">Laporan hasil verifikasi audit fisik inventaris berkala 3 bulanan.</div>' +
       '</div>' +
@@ -3162,7 +3177,7 @@ function openBAPSelector() {
         '<div class="empty-state-icon">' + icon('trash', 32) + '</div>' +
         '<div class="empty-state-title">Belum Ada Usulan yang Disetujui</div>' +
         '<div class="empty-state-desc">Berita Acara Pemusnahan hanya dapat diterbitkan untuk barang yang usulan penghapusannya telah disetujui pimpinan di menu Usulan Penghapusan.</div>' +
-        '<button class="btn btn-primary" onclick="closeModal(); switchView(\'penghapusan\');">Buka Menu Penghapusan</button>' +
+        '<button class="btn-primary" onclick="closeModal(); switchView(\'penghapusan\');">' + iconLabel('trash', 'Buka Menu Penghapusan') + '</button>' +
       '</div>');
     return;
   }
@@ -3260,7 +3275,7 @@ function openModalSPPB() {
       '<label>Alasan / Justifikasi Kebutuhan<textarea id="sppb-justifikasi" required rows="2" placeholder="Jelaskan tujuan pengadaan barang ini dan peruntukannya bagi kegiatan operasional sekolah/pesantren..."></textarea></label>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 6px;">' +
         '<strong style="font-size:13px;">Daftar Barang yang Diajukan:</strong>' +
-        '<button type="button" class="btn btn-sm btn-outline" onclick="addSppbItemRow()">' + icon('plus', 13) + '<span>Tambah Baris</span></button>' +
+        '<button type="button" class="btn-secondary btn-sm" onclick="addSppbItemRow()">' + iconLabel('plus', 'Tambah Baris') + '</button>' +
       '</div>' +
       '<div style="overflow-x:auto;">' +
         '<table class="doc-items-table" id="table-sppb-items">' +
@@ -3300,7 +3315,7 @@ function addSppbItemRow() {
     '<td><input required type="number" min="1" class="sppb-qty" value="1" oninput="calculateSppbTotal()"></td>' +
     '<td><input class="sppb-satuan" value="Unit" placeholder="Unit/Pcs/Set"></td>' +
     '<td><input required type="text" inputmode="numeric" class="sppb-harga" value="0" oninput="onSppbHargaInput(this)"></td>' +
-    '<td style="text-align:center;"><button type="button" class="btn btn-sm btn-outline" style="color:#ef4444;border-color:#ef4444;padding:2px 6px;" onclick="removeSppbItemRow(' + SPPB_ROW_COUNTER + ')">&times;</button></td>';
+    '<td style="text-align:center;"><button type="button" class="btn-row-del" onclick="removeSppbItemRow(' + SPPB_ROW_COUNTER + ')" title="Hapus Baris">' + icon('trash', 13) + '</button></td>';
   tbody.appendChild(tr);
   calculateSppbTotal();
 }
@@ -3446,7 +3461,7 @@ function openModalBAST() {
       '</div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 6px;">' +
         '<strong style="font-size:13px;">Daftar Barang yang Diserahterimakan:</strong>' +
-        '<button type="button" class="btn btn-sm btn-outline" onclick="addBastItemRow()">' + icon('plus', 13) + '<span>Tambah Baris</span></button>' +
+        '<button type="button" class="btn-secondary btn-sm" onclick="addBastItemRow()">' + iconLabel('plus', 'Tambah Baris') + '</button>' +
       '</div>' +
       '<div style="overflow-x:auto;">' +
         '<table class="doc-items-table" id="table-bast-items">' +
@@ -3481,7 +3496,7 @@ function addBastItemRow() {
     '<td><input class="bast-spek" placeholder="Contoh: Inverter R32 Putih"></td>' +
     '<td><input required type="number" min="1" class="bast-qty" value="1"></td>' +
     '<td><input class="bast-satuan" value="Unit"></td>' +
-    '<td style="text-align:center;"><button type="button" class="btn btn-sm btn-outline" style="color:#ef4444;border-color:#ef4444;padding:2px 6px;" onclick="removeBastItemRow(' + BAST_ROW_COUNTER + ')">&times;</button></td>';
+    '<td style="text-align:center;"><button type="button" class="btn-row-del" onclick="removeBastItemRow(' + BAST_ROW_COUNTER + ')" title="Hapus Baris">' + icon('trash', 13) + '</button></td>';
   tbody.appendChild(tr);
 }
 

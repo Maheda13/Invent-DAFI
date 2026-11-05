@@ -85,12 +85,8 @@
           <p class="section-subtitle">Pantau aset, siklus audit, dan status operasional sarpras SMP, MA, dan Pesantren DAFI.</p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <button type="button" class="btn-secondary" onclick="openPusatDokumenModal()" title="Cetak Surat & Dokumen Administrasi Sarpras">
-            <span>📄 Dokumen Sarpras</span>
-          </button>
-          <button type="button" class="btn-secondary btn-quick-find" onclick="openCommandPalette()" title="Pencarian Cepat (Ctrl+K)">
-            <span>🔍 Quick Find</span> <kbd class="kbd-pill">Ctrl+K</kbd>
-          </button>
+          <button type="button" class="btn-secondary" onclick="openPusatDokumenModal()" data-icon="fileText" title="Cetak Surat & Dokumen Administrasi Sarpras">Dokumen Sarpras</button>
+          <button type="button" class="btn-secondary btn-quick-find" onclick="openCommandPalette()" data-icon="search" title="Pencarian Cepat (Ctrl+K)">Quick Find <kbd class="kbd-pill">Ctrl+K</kbd></button>
         </div>
       </div>
 
@@ -119,8 +115,8 @@
           <p class="section-subtitle">Daftar inventaris aset fisik dan kelengkapan dokumen perolehan.</p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <button type="button" class="btn-secondary" id="btn-import-barang-csv" onclick="openImportWizard()" title="Impor data barang dari file CSV / Excel">📤 Impor CSV</button>
-          <button type="button" class="btn-secondary" id="btn-export-barang-csv" onclick="exportBarangCsv()" title="Unduh data tabel terfilter ke file CSV / Excel">📥 Unduh CSV/Excel</button>
+          <button type="button" class="btn-secondary" id="btn-import-barang-csv" onclick="openImportWizard()" data-icon="upload" title="Impor data barang dari file CSV / Excel">Impor CSV</button>
+          <button type="button" class="btn-secondary" id="btn-export-barang-csv" onclick="exportBarangCsv()" data-icon="download" title="Unduh data tabel terfilter ke file CSV / Excel">Unduh CSV/Excel</button>
           <button class="btn-primary write-action" id="btn-new-barang" data-icon="plus">Barang Baru</button>
         </div>
       </div>
@@ -144,21 +140,21 @@
         </select>
         <select id="filter-kelengkapan">
           <option value="">Semua Kelengkapan</option>
-          <option value="tidak_lengkap">⚠️ Data Belum Lengkap</option>
+          <option value="tidak_lengkap">Data Belum Lengkap</option>
           <option value="merk_kosong">Merk / Spek Kosong</option>
           <option value="harga_kosong">Harga Rp 0 / Kosong</option>
-          <option value="lengkap">✅ Data Lengkap</option>
+          <option value="lengkap">Data Lengkap</option>
         </select>
         <select id="filter-validasi">
           <option value="">Semua Validasi</option>
-          <option value="perlu_validasi">⏰ Perlu Validasi Ulang (>3 Bulan)</option>
-          <option value="tervalidasi">✅ Tervalidasi (&le;3 Bulan)</option>
+          <option value="perlu_validasi">Perlu Validasi Ulang (>3 Bulan)</option>
+          <option value="tervalidasi">Tervalidasi (&le;3 Bulan)</option>
         </select>
       </div>
 
       <div class="table-meta-bar">
         <span class="table-result-count" id="barang-result-count">Memuat data...</span>
-        <button type="button" class="btn-reset-filter hidden" id="btn-reset-barang-filter" onclick="resetBarangFilter()">✕ Bersihkan Semua Filter</button>
+        <button type="button" class="btn-reset-filter hidden" id="btn-reset-barang-filter" onclick="resetBarangFilter()" data-icon="undo">Bersihkan Semua Filter</button>
       </div>
 
       <div class="table-wrap">
@@ -243,7 +239,7 @@
           <p class="section-subtitle">Daftar usulan dan keputusan penghapusan serta pemusnahan aset sarpras.</p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <button type="button" class="btn-secondary" id="btn-print-bap-penghapusan" onclick="openBAPSelector()" title="Cetak Berita Acara Pemusnahan Aset">📄 Cetak BAP</button>
+          <button type="button" class="btn-secondary" id="btn-print-bap-penghapusan" onclick="openBAPSelector()" data-icon="fileText" title="Cetak Berita Acara Pemusnahan Aset">Cetak BAP</button>
           <button class="btn-primary write-action" id="btn-new-penghapusan" data-icon="plus">Ajukan Penghapusan</button>
         </div>
       </div>
@@ -286,7 +282,7 @@
       <div class="section-header">
         <h2>Data Ruangan</h2>
         <div style="display:flex;gap:8px;">
-          <button class="btn-secondary write-action" id="btn-select-kir-editor" onclick="openSelectRoomForKirEditor()">✏️ Edit KIR Ruangan</button>
+          <button class="btn-secondary write-action" id="btn-select-kir-editor" onclick="openSelectRoomForKirEditor()" data-icon="edit">Edit KIR Ruangan</button>
           <button class="btn-primary admin-only" id="btn-new-ruangan" data-icon="plus">Ruangan Baru</button>
         </div>
       </div>
@@ -464,7 +460,7 @@
   <div class="print-preview-toolbar no-print">
     <span class="print-preview-title">Pratinjau Cetak<span class="print-scroll-hint"> — geser untuk lihat halaman penuh</span></span>
     <div>
-      <button id="btn-print-now" class="btn-primary">🖨️ Cetak / Simpan sebagai PDF</button>
+      <button id="btn-print-now" class="btn-primary" data-icon="printer">Cetak / Simpan sebagai PDF</button>
       <button id="btn-close-print" class="btn-secondary" data-icon="xCircle">Tutup</button>
     </div>
   </div>
@@ -477,7 +473,7 @@
 <div id="cmd-palette-overlay" class="cmd-palette-overlay hidden">
   <div class="cmd-palette-card">
     <div class="cmd-palette-input-wrap">
-      <span class="cmd-palette-icon">🔍</span>
+      <span class="cmd-palette-icon" data-icon="search"></span>
       <input type="text" id="cmd-palette-input" placeholder="Cari nama barang, nomor inventaris, ruangan, atau menu... (Tekan ESC untuk tutup)" autocomplete="off">
       <button type="button" class="cmd-palette-close" onclick="closeCommandPalette()">&times;</button>
     </div>
