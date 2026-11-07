@@ -1118,6 +1118,36 @@ function sigBlock(label, nama) {
     '<div class="sig-name">' + (nama ? nama : '(.....................)') + '</div></div>';
 }
 
+// Tabel tanda tangan 2 kolom yang menjamin posisi nama pimpinan & penanggung jawab
+// berada persis di satu garis horizontal (baseline sejajar di semua browser & PDF export).
+function sigTable2(leftLabel, leftName, rightLabel, rightName) {
+  return '<table class="print-sig-table" style="width:100%;border-collapse:collapse;border:none!important;margin-top:24px;font-size:12px;">' +
+    '<tr style="border:none!important;">' +
+      '<td style="width:44%;text-align:center;vertical-align:top;border:none!important;padding:0!important;line-height:1.4;">' +
+        '<div class="sig-label">' + leftLabel + '</div>' +
+      '</td>' +
+      '<td style="width:12%;border:none!important;padding:0!important;"></td>' +
+      '<td style="width:44%;text-align:center;vertical-align:top;border:none!important;padding:0!important;line-height:1.4;">' +
+        '<div class="sig-label">' + rightLabel + '</div>' +
+      '</td>' +
+    '</tr>' +
+    '<tr style="border:none!important;">' +
+      '<td class="sig-space-cell" style="height:50px;border:none!important;padding:0!important;"></td>' +
+      '<td style="border:none!important;padding:0!important;"></td>' +
+      '<td class="sig-space-cell" style="height:50px;border:none!important;padding:0!important;"></td>' +
+    '</tr>' +
+    '<tr style="border:none!important;">' +
+      '<td class="sig-name-cell" style="width:44%;text-align:center;vertical-align:bottom;border:none!important;padding:0!important;line-height:1.4;">' +
+        '<div class="sig-name" style="font-weight:600;text-decoration:underline;">' + (leftName ? leftName : '(.....................)') + '</div>' +
+      '</td>' +
+      '<td style="border:none!important;padding:0!important;"></td>' +
+      '<td class="sig-name-cell" style="width:44%;text-align:center;vertical-align:bottom;border:none!important;padding:0!important;line-height:1.4;">' +
+        '<div class="sig-name" style="font-weight:600;text-decoration:underline;">' + (rightName ? rightName : '(.....................)') + '</div>' +
+      '</td>' +
+    '</tr>' +
+  '</table>';
+}
+
 // Gambar kop surat resmi berbeda per institusi, dipasang sebagai
 // background penuh halaman A4. Konten dokumen (judul, tabel, tanda
 // tangan) dibungkus .print-content dengan padding atas/bawah yang
@@ -1183,16 +1213,38 @@ function downloadCurrentPrintPdf() {
   if (typeof html2pdf !== 'undefined') {
     toast('Sedang membuat file PDF, mohon tunggu sebentar...');
     const isLandscape = page.classList.contains('landscape') || meta.orientation === 'landscape';
+
+    // Hilangkan box-shadow dan margin sementara agar canvas capture bersih dan tidak bergeser
+    const origBoxShadow = page.style.boxShadow;
+    const origMargin = page.style.margin;
+    page.style.boxShadow = 'none';
+    page.style.margin = '0';
+
     const opt = {
       margin: 0,
       filename: filename,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        letterRendering: true,
+        logging: false,
+        scrollY: 0,
+        scrollX: 0
+      },
       jsPDF: { unit: 'mm', format: 'a4', orientation: isLandscape ? 'landscape' : 'portrait' }
     };
+
+    const restoreStyles = function () {
+      page.style.boxShadow = origBoxShadow;
+      page.style.margin = origMargin;
+    };
+
     html2pdf().set(opt).from(page).save().then(function () {
+      restoreStyles();
       toast('File PDF berhasil diunduh: ' + filename);
     }).catch(function (err) {
+      restoreStyles();
       console.warn('html2pdf error, fallback to browser print/save:', err);
       window.print();
     });
@@ -1235,6 +1287,8 @@ function downloadCurrentPrintHtml() {
     '.print-signature .sig-block { text-align: center; width: 220px; }\n' +
     '.print-signature .sig-space { height: 50px; }\n' +
     '.print-signature .sig-name { font-weight: 600; text-decoration: underline; }\n' +
+    '.print-sig-table { width: 100%; border-collapse: collapse; border: none !important; margin-top: 25px; font-size: 12px; }\n' +
+    '.print-sig-table tr, .print-sig-table td { border: none !important; padding: 0 !important; }\n' +
     '.print-date { text-align: right; font-size: 12px; margin-bottom: 20px; }\n' +
     '@media print {\n' +
     '  body { padding: 0 !important; background: transparent !important; }\n' +
@@ -1329,6 +1383,10 @@ async function printKIB(nomorInventaris) {
         }).join('') + '</tbody></table>'
       : '<div class="print-empty-note">Belum ada riwayat perawatan untuk barang ini.</div>';
 
+    const todayDateStr = 'Sidoarjo, ' + new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    const leftLabel = 'Mengetahui,<br>' + (PIMPINAN_JABATAN[b.institusi] || 'Pimpinan');
+    const rightLabel = todayDateStr + '<br>Penanggung Jawab';
+
     const html = '<div class="print-page portrait">' + printBgImage(b.institusi) +
       '<div class="print-content">' +
       '<div class="print-title">KARTU INVENTARIS BARANG (KIB)</div>' +
@@ -1337,11 +1395,8 @@ async function printKIB(nomorInventaris) {
       }).join('') + '</table>' +
       '<div class="print-subtitle">13. Tabel Riwayat Perawatan</div>' +
       riwayatTableHtml +
-      '<div class="print-date">Dicetak: ' + new Date().toLocaleDateString('id-ID') + '</div>' +
-      '<div class="print-signature">' +
-        sigBlock('Mengetahui,<br>' + (PIMPINAN_JABATAN[b.institusi] || 'Pimpinan'), pimpinanNama(b.institusi)) +
-        sigBlock('Penanggung Jawab', penanggungJawabNama(b.institusi)) +
-      '</div></div></div>';
+      sigTable2(leftLabel, pimpinanNama(b.institusi), rightLabel, penanggungJawabNama(b.institusi)) +
+      '</div></div>';
     showPrintPreview(html, 'portrait', {
       title: 'KIB_' + String(b.nomor_inventaris).replace(/[^a-zA-Z0-9_-]/g, '_'),
       orientation: 'portrait'
@@ -1882,6 +1937,10 @@ async function printKIR(kode) {
       ? String(ruangan.penanggung_jawab).trim()
       : '';
 
+    const todayDateStr = 'Sidoarjo, ' + new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    const leftLabel = 'Mengetahui,<br>' + (PIMPINAN_JABATAN[institusiRuangan] || 'Pimpinan');
+    const rightLabel = todayDateStr + '<br>Penanggung Jawab Ruangan';
+
     const html = '<div class="print-page portrait">' + printBgImage(institusiRuangan) +
       '<div class="print-content">' +
       '<div class="print-title">KARTU INVENTARIS RUANGAN (KIR)</div>' +
@@ -1893,11 +1952,8 @@ async function printKIR(kode) {
       '<table class="print-data-table"><thead><tr>' +
         '<th>No.</th><th>Nomor Inventaris</th><th>Nama Barang</th><th>Jumlah</th><th>Kondisi</th>' +
       '</tr></thead><tbody>' + bodyRows + '</tbody></table>' +
-      '<div class="print-date">Dicetak: ' + new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) + '</div>' +
-      '<div class="print-signature">' +
-        sigBlock('Mengetahui,<br>' + (PIMPINAN_JABATAN[institusiRuangan] || 'Pimpinan'), pimpinanNama(institusiRuangan)) +
-        sigBlock('Penanggung Jawab Ruangan', pjRuanganNama) +
-      '</div></div></div>';
+      sigTable2(leftLabel, pimpinanNama(institusiRuangan), rightLabel, pjRuanganNama) +
+      '</div></div>';
 
     const docTitle = 'KIR_' + (ruangan ? ruangan.nama_ruangan.replace(/[^a-zA-Z0-9_-]/g, '_') : kode);
     const csvRows = [
