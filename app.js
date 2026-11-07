@@ -2,7 +2,7 @@
 // KONFIGURASI - ganti dengan URL Web App Apps Script Anda
 // ============================================================
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbwBLPSChexiGY566Z7xxd1-eRcgPrZzji2zlXEc-ZPRHSxakf3eSiqs5EGqCW_IhMbe/exec'
+  API_URL: 'https://script.google.com/macros/s/AKfycbxdLWKDp1r34CNrZjEyCDK2gV6D8JYIC7ZDDNmUuOeLGczAN9JFTnD4RCJVfrQgLYJU/exec'
 };
 
 // ============================================================
@@ -634,8 +634,16 @@ async function loadRuanganDropdownData() {
   const golSelect = document.getElementById('filter-golongan');
   // filter golongan diisi setelah referensi termuat (lihat loadReferensiDropdownData)
 }
-function ruanganOptions(selected) {
-  return STATE.ruanganList.map(function (r) {
+function ruanganOptions(selected, allRooms) {
+  let list = STATE.ruanganList || [];
+  if (!allRooms && STATE.user) {
+    if (STATE.user.role === 'petugas' && STATE.user.kode_ruangan) {
+      list = list.filter(function (r) { return r.kode_ruangan === STATE.user.kode_ruangan; });
+    } else if ((STATE.user.role === 'penanggung_jawab' || STATE.user.role === 'kepala_sekolah') && STATE.user.institusi) {
+      list = list.filter(function (r) { return r.institusi === STATE.user.institusi; });
+    }
+  }
+  return list.map(function (r) {
     return '<option value="' + r.kode_ruangan + '"' + (r.kode_ruangan === selected ? ' selected' : '') + '>' +
       r.nama_ruangan + '</option>';
   }).join('');
@@ -1134,7 +1142,7 @@ function infoRow(label, value) {
   return '<tr><td class="dl-k">' + label + '</td><td class="dl-sep">:</td><td>' + (value || '-') + '</td></tr>';
 }
 
-function showPrintPreview(html, orientation) {
+function showPrintPreview(html, orientation, docMeta) {
   document.getElementById('print-area').innerHTML = html;
   let pageStyle = document.getElementById('dynamic-page-style');
   if (!pageStyle) {
@@ -1142,9 +1150,139 @@ function showPrintPreview(html, orientation) {
     pageStyle.id = 'dynamic-page-style';
     document.head.appendChild(pageStyle);
   }
-  pageStyle.textContent = '@page { size: A4 ' + orientation + '; margin: 0; }';
+  pageStyle.textContent = '@page { size: A4 ' + (orientation || 'portrait') + '; margin: 0; }';
+
+  // Simpan metadata dokumen yang aktif untuk fitur download file
+  STATE.currentPrintMeta = docMeta || {
+    title: 'Dokumen_SIDAFI',
+    orientation: orientation || 'portrait'
+  };
+
+  // Tampilkan/sembunyikan tombol Download Excel jika data CSV tersedia
+  const btnCsv = document.getElementById('btn-download-csv');
+  if (btnCsv) {
+    if (docMeta && docMeta.csvData && docMeta.csvData.length) {
+      btnCsv.classList.remove('hidden');
+    } else {
+      btnCsv.classList.add('hidden');
+    }
+  }
+
   document.getElementById('print-preview-overlay').classList.remove('hidden');
 }
+
+// ---------------- FITUR DOWNLOAD FILE DOKUMEN ----------------
+function downloadCurrentPrintPdf() {
+  const area = document.getElementById('print-area');
+  const page = area ? area.querySelector('.print-page') : null;
+  if (!page) { toast('Tidak ada dokumen yang sedang ditampilkan.', true); return; }
+
+  const meta = STATE.currentPrintMeta || {};
+  const filename = (meta.title || 'Dokumen_SIDAFI') + '_' + new Date().toISOString().slice(0, 10) + '.pdf';
+
+  if (typeof html2pdf !== 'undefined') {
+    toast('Sedang membuat file PDF, mohon tunggu sebentar...');
+    const isLandscape = page.classList.contains('landscape') || meta.orientation === 'landscape';
+    const opt = {
+      margin: 0,
+      filename: filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: isLandscape ? 'landscape' : 'portrait' }
+    };
+    html2pdf().set(opt).from(page).save().then(function () {
+      toast('File PDF berhasil diunduh: ' + filename);
+    }).catch(function (err) {
+      console.warn('html2pdf error, fallback to browser print/save:', err);
+      window.print();
+    });
+  } else {
+    // Fallback jika library belum termuat
+    downloadCurrentPrintHtml();
+  }
+}
+
+function downloadCurrentPrintHtml() {
+  const area = document.getElementById('print-area');
+  if (!area || !area.innerHTML.trim()) { toast('Tidak ada dokumen untuk diunduh.', true); return; }
+  const meta = STATE.currentPrintMeta || {};
+  const filename = (meta.title || 'Dokumen_SIDAFI') + '_' + new Date().toISOString().slice(0, 10) + '.html';
+
+  const standaloneHtml = '<!DOCTYPE html>\n<html lang="id">\n<head>\n' +
+    '<meta charset="UTF-8">\n' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+    '<title>' + (meta.title ? meta.title.replace(/_/g, ' ') : 'Dokumen Resmi SIDAFI') + '</title>\n' +
+    '<style>\n' +
+    '@page { size: A4 ' + (meta.orientation || 'portrait') + '; margin: 0; }\n' +
+    '* { box-sizing: border-box; }\n' +
+    'body { margin: 0; padding: 24px 0; font-family: "Times New Roman", Times, serif; background: #525659; display: flex; justify-content: center; }\n' +
+    '.print-page { background: #fff; width: 210mm; min-height: 297mm; position: relative; box-shadow: 0 4px 16px rgba(0,0,0,0.3); overflow: hidden; color: #111; }\n' +
+    '.print-page.landscape { width: 297mm; min-height: 210mm; }\n' +
+    '.print-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none; }\n' +
+    '.print-content { position: relative; z-index: 1; padding: 38mm 15mm 22mm; }\n' +
+    '.print-title { text-align: center; font-size: 15px; font-weight: bold; text-decoration: underline; margin: 0 0 16px; }\n' +
+    '.print-subtitle { font-weight: bold; font-size: 12.5px; margin: 12px 0 6px; }\n' +
+    '.print-info-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-bottom: 14px; }\n' +
+    '.print-info-table td { padding: 3px 6px; vertical-align: top; }\n' +
+    '.print-info-table td.dl-k { width: 34%; }\n' +
+    '.print-info-table td.dl-sep { width: 12px; }\n' +
+    '.print-data-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 16px; }\n' +
+    '.print-data-table th, .print-data-table td { border: 1px solid #111; padding: 4px 6px; text-align: left; }\n' +
+    '.print-data-table th { background: #eee; font-weight: bold; }\n' +
+    '.print-data-table td.num { text-align: right; }\n' +
+    '.print-data-table td.mono { font-family: monospace; font-size: 9.5px; }\n' +
+    '.print-signature { display: flex; justify-content: space-between; margin-top: 25px; font-size: 12px; }\n' +
+    '.print-signature .sig-block { text-align: center; width: 220px; }\n' +
+    '.print-signature .sig-space { height: 50px; }\n' +
+    '.print-signature .sig-name { font-weight: 600; text-decoration: underline; }\n' +
+    '.print-date { text-align: right; font-size: 12px; margin-bottom: 20px; }\n' +
+    '@media print {\n' +
+    '  body { padding: 0 !important; background: transparent !important; }\n' +
+    '  .print-page { box-shadow: none !important; margin: 0 !important; width: 100% !important; min-height: auto !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }\n' +
+    '}\n' +
+    '</style>\n' +
+    '</head>\n<body>\n' +
+    area.innerHTML +
+    '\n</body>\n</html>';
+
+  const blob = new Blob([standaloneHtml], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('File HTML dokumen mandiri berhasil diunduh: ' + filename);
+}
+
+function downloadCurrentPrintCsv() {
+  const meta = STATE.currentPrintMeta || {};
+  if (!meta.csvData || !meta.csvData.length) {
+    toast('Data tabel Excel tidak tersedia untuk dokumen ini.', true);
+    return;
+  }
+  const filename = (meta.title || 'Data_SIDAFI') + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+  const csvContent = '\uFEFF' + meta.csvData.map(function (row) {
+    return row.map(function (cell) {
+      const str = String(cell === undefined || cell === null ? '' : cell).replace(/"/g, '""');
+      return '"' + str + '"';
+    }).join(',');
+  }).join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('File Excel (CSV) berhasil diunduh: ' + filename);
+}
+
 document.getElementById('btn-close-print').addEventListener('click', function () {
   document.getElementById('print-preview-overlay').classList.add('hidden');
 });
@@ -1204,7 +1342,10 @@ async function printKIB(nomorInventaris) {
         sigBlock('Mengetahui,<br>' + (PIMPINAN_JABATAN[b.institusi] || 'Pimpinan'), pimpinanNama(b.institusi)) +
         sigBlock('Penanggung Jawab', penanggungJawabNama(b.institusi)) +
       '</div></div></div>';
-    showPrintPreview(html, 'portrait');
+    showPrintPreview(html, 'portrait', {
+      title: 'KIB_' + String(b.nomor_inventaris).replace(/[^a-zA-Z0-9_-]/g, '_'),
+      orientation: 'portrait'
+    });
   } catch (err) { toast(err.message, true); }
 }
 
@@ -1566,8 +1707,16 @@ async function loadRuangan() {
 
     const filterInst = document.getElementById('filter-ruangan-institusi');
     if (!filterInst.dataset.filled) {
-      filterInst.innerHTML = '<option value="">Semua Institusi</option>' +
-        INSTITUSI_LIST.map(function (i) { return '<option value="' + i + '">' + i + '</option>'; }).join('');
+      if (STATE.user && (STATE.user.role === 'penanggung_jawab' || STATE.user.role === 'kepala_sekolah') && STATE.user.institusi) {
+        filterInst.innerHTML = '<option value="' + STATE.user.institusi + '">' + STATE.user.institusi + '</option>';
+        filterInst.value = STATE.user.institusi;
+        filterInst.disabled = true;
+      } else if (STATE.user && STATE.user.role === 'petugas') {
+        filterInst.style.display = 'none';
+      } else {
+        filterInst.innerHTML = '<option value="">Semua Institusi</option>' +
+          INSTITUSI_LIST.map(function (i) { return '<option value="' + i + '">' + i + '</option>'; }).join('');
+      }
       filterInst.dataset.filled = '1';
     }
     renderRuanganTable();
@@ -1593,7 +1742,13 @@ function renderRuanganTable() {
   const search = document.getElementById('filter-ruangan-search').value.toLowerCase();
   const institusi = document.getElementById('filter-ruangan-institusi').value;
   const filtered = STATE.ruanganList.filter(function (r) {
-    if (institusi && r.institusi !== institusi) return false;
+    if (STATE.user && STATE.user.role === 'petugas' && STATE.user.kode_ruangan) {
+      if (r.kode_ruangan !== STATE.user.kode_ruangan) return false;
+    } else if (STATE.user && (STATE.user.role === 'penanggung_jawab' || STATE.user.role === 'kepala_sekolah') && STATE.user.institusi) {
+      if (r.institusi !== STATE.user.institusi) return false;
+    } else if (institusi && r.institusi !== institusi) {
+      return false;
+    }
     if (search) {
       const gabungan = [r.kode_ruangan, r.nama_ruangan, r.area, r.gedung].join(' ').toLowerCase();
       if (gabungan.indexOf(search) === -1) return false;
@@ -1601,11 +1756,13 @@ function renderRuanganTable() {
     return true;
   });
   document.querySelector('#table-ruangan tbody').innerHTML = filtered.map(function (r) {
+    const canEditRoom = STATE.user && (STATE.user.role === 'admin' ||
+      (STATE.user.role === 'penanggung_jawab' && STATE.user.institusi === r.institusi));
     return '<tr><td class="mono">' + r.kode_ruangan + '</td><td>' + badge(r.institusi) + '</td><td>' + (r.area || '-') + '</td>' +
       '<td>' + (r.gedung || '-') + '</td><td>' + r.nama_ruangan + '</td><td>' + (r.penanggung_jawab || '-') + '</td>' +
       '<td class="row-actions">' +
         (STATE.user.role !== 'keuangan' ? '<button data-tooltip="Edit KIR (Detail Barang Ruangan)" onclick="openKirEditor(\'' + r.kode_ruangan + '\')">' + icon('clipboard') + '</button> ' : '') +
-        (STATE.user.role === 'admin' ? '<button data-tooltip="Ubah Data Ruangan" onclick="editRuangan(\'' + r.kode_ruangan + '\')">' + icon('edit') + '</button> ' : '') +
+        (canEditRoom ? '<button data-tooltip="Ubah Data Ruangan" onclick="editRuangan(\'' + r.kode_ruangan + '\')">' + icon('edit') + '</button> ' : '') +
         '<button data-tooltip="Cetak KIR" onclick="printKIR(\'' + r.kode_ruangan + '\')">' + icon('printer') + '</button>' +
         (FEATURE_LABEL_STICKER ? ' <button data-tooltip="Cetak Semua Stiker Ruangan" onclick="printBatchLabelSticker(\'' + r.kode_ruangan + '\')">' + icon('tag') + '</button>' : '') +
       '</td></tr>';
@@ -1619,9 +1776,15 @@ function renderRuanganTable() {
 
 function ruanganForm(data) {
   data = data || {};
+  const isPjb = STATE.user && STATE.user.role === 'penanggung_jawab';
+  const userInstitusi = isPjb ? (STATE.user.institusi || data.institusi || 'SMP') : (data.institusi || 'SMP');
+  const institusiFieldHtml = isPjb ?
+    '<label>Institusi <span style="font-weight:400;color:#888;">(Terkunci di Unit Anda)</span><input id="ru-institusi" value="' + escapeHtml(userInstitusi) + '" readonly style="background:#f4f4f4;"></label>' :
+    '<label>Institusi<select required id="ru-institusi">' + institusiOptions(data.institusi) + '</select></label>';
+
   return '<form id="form-ruangan">' +
     '<label>Kode Ruangan<input required id="ru-kode" placeholder="SR.AR.7A" value="' + (data.kode_ruangan || '') + '" ' + (data.kode_ruangan ? 'readonly style="background:#f4f4f4;"' : '') + '></label>' +
-    '<label>Institusi<select required id="ru-institusi">' + institusiOptions(data.institusi) + '</select></label>' +
+    institusiFieldHtml +
     '<label>Area<input id="ru-area" placeholder="Sarirogo" value="' + (data.area || '') + '"></label>' +
     '<label>Gedung<input id="ru-gedung" placeholder="Arafah" value="' + (data.gedung || '') + '"></label>' +
     '<label>Nama Ruangan<input required id="ru-nama" value="' + (data.nama_ruangan || '') + '"></label>' +
@@ -1634,9 +1797,11 @@ function bindRuanganFormSubmit() {
   document.getElementById('form-ruangan').addEventListener('submit', async function (e) {
     e.preventDefault();
     try {
+      const isPjb = STATE.user && STATE.user.role === 'penanggung_jawab';
+      const institusiValue = isPjb ? STATE.user.institusi : document.getElementById('ru-institusi').value;
       await api('saveRuangan', {
         kode_ruangan: document.getElementById('ru-kode').value,
-        institusi: document.getElementById('ru-institusi').value,
+        institusi: institusiValue,
         area: document.getElementById('ru-area').value,
         gedung: document.getElementById('ru-gedung').value,
         nama_ruangan: document.getElementById('ru-nama').value,
@@ -1654,13 +1819,28 @@ document.getElementById('btn-new-ruangan').addEventListener('click', function ()
 
 function editRuangan(kode) {
   const data = STATE.ruanganList.find(function (r) { return r.kode_ruangan === kode; });
+  if (!data) return;
+  if (STATE.user && STATE.user.role === 'penanggung_jawab' && data.institusi !== STATE.user.institusi) {
+    toast('Anda hanya berhak mengelola ruangan di institusi Anda (' + STATE.user.institusi + ').', true);
+    return;
+  }
   openModal('Ubah Ruangan — ' + kode, ruanganForm(data));
   bindRuanganFormSubmit();
 }
 
 async function printKIR(kode) {
   try {
-    const ruangan = STATE.ruanganList.find(function (r) { return r.kode_ruangan === kode; });
+    let ruangan = (STATE.ruanganList || []).find(function (r) { return r.kode_ruangan === kode; });
+    if (!ruangan) {
+      try {
+        const ruRes = await api('listRuangan', {});
+        if (ruRes && ruRes.data) {
+          STATE.ruanganList = ruRes.data;
+          ruangan = STATE.ruanganList.find(function (r) { return r.kode_ruangan === kode; });
+        }
+      } catch (e) { /* abaikan jika offline */ }
+    }
+
     const res = await api('listBarang', { kode_ruangan: kode, pageSize: 9999, status: '' });
     const items = res.data.filter(function (b) { return b.status !== 'dihapus'; });
 
@@ -1698,23 +1878,56 @@ async function printKIR(kode) {
     }).join('') || '<tr><td colspan="5" style="text-align:center;">Belum ada barang di ruangan ini.</td></tr>';
 
     const institusiRuangan = ruangan ? ruangan.institusi : '';
+    const pjRuanganNama = (ruangan && ruangan.penanggung_jawab && String(ruangan.penanggung_jawab).trim() !== '-' && String(ruangan.penanggung_jawab).trim() !== '')
+      ? String(ruangan.penanggung_jawab).trim()
+      : '';
+
     const html = '<div class="print-page portrait">' + printBgImage(institusiRuangan) +
       '<div class="print-content">' +
       '<div class="print-title">KARTU INVENTARIS RUANGAN (KIR)</div>' +
       '<table class="print-info-table">' +
         infoRow('1. Nama Ruangan', (ruangan ? ruangan.nama_ruangan : kode)) +
-        infoRow('2. Penanggungjawab Ruangan', (ruangan ? ruangan.penanggung_jawab : '-')) +
+        infoRow('2. Penanggungjawab Ruangan', (pjRuanganNama || '-')) +
       '</table>' +
       '<div class="print-subtitle">3. Tabel Inventaris</div>' +
       '<table class="print-data-table"><thead><tr>' +
         '<th>No.</th><th>Nomor Inventaris</th><th>Nama Barang</th><th>Jumlah</th><th>Kondisi</th>' +
       '</tr></thead><tbody>' + bodyRows + '</tbody></table>' +
-      '<div class="print-date">Dicetak: ' + new Date().toLocaleDateString('id-ID') + '</div>' +
+      '<div class="print-date">Dicetak: ' + new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) + '</div>' +
       '<div class="print-signature">' +
         sigBlock('Mengetahui,<br>' + (PIMPINAN_JABATAN[institusiRuangan] || 'Pimpinan'), pimpinanNama(institusiRuangan)) +
-        sigBlock('Penanggung Jawab', penanggungJawabNama(institusiRuangan)) +
+        sigBlock('Penanggung Jawab Ruangan', pjRuanganNama) +
       '</div></div></div>';
-    showPrintPreview(html, 'portrait');
+
+    const docTitle = 'KIR_' + (ruangan ? ruangan.nama_ruangan.replace(/[^a-zA-Z0-9_-]/g, '_') : kode);
+    const csvRows = [
+      ['KARTU INVENTARIS RUANGAN (KIR)'],
+      ['Ruangan: ' + (ruangan ? ruangan.nama_ruangan : kode) + ' (' + kode + ')'],
+      ['Penanggung Jawab Ruangan: ' + (pjRuanganNama || '-')],
+      ['Institusi: ' + (institusiRuangan || '-')],
+      ['Tanggal Cetak: ' + new Date().toLocaleDateString('id-ID')],
+      [],
+      ['No', 'Nomor Inventaris', 'Nama Barang', 'Merk / Spesifikasi', 'Jumlah', 'Satuan', 'Kondisi']
+    ];
+    groupOrder.forEach(function (key, idx) {
+      const g = groups[key];
+      const jumlah = Object.values(g.kondisi).reduce(function (a, b) { return a + b; }, 0);
+      csvRows.push([
+        idx + 1,
+        formatNomorInventarisRanges(g.nomorList),
+        g.jenis_barang,
+        g.spesifikasi || '-',
+        jumlah,
+        g.satuan || 'unit',
+        formatKondisi(g.kondisi)
+      ]);
+    });
+
+    showPrintPreview(html, 'portrait', {
+      title: docTitle,
+      orientation: 'portrait',
+      csvData: csvRows
+    });
   } catch (err) { toast(err.message, true); }
 }
 
@@ -1725,7 +1938,16 @@ async function printKIR(kode) {
 // ============================================================
 
 function openSelectRoomForKirEditor() {
-  const options = (STATE.ruanganList || []).map(function (r) {
+  if (STATE.user && STATE.user.role === 'petugas' && STATE.user.kode_ruangan) {
+    openKirEditor(STATE.user.kode_ruangan);
+    return;
+  }
+  let list = STATE.ruanganList || [];
+  if (STATE.user && (STATE.user.role === 'penanggung_jawab' || STATE.user.role === 'kepala_sekolah') && STATE.user.institusi) {
+    list = list.filter(function (r) { return r.institusi === STATE.user.institusi; });
+  }
+
+  const options = list.map(function (r) {
     return '<option value="' + r.kode_ruangan + '">' + r.kode_ruangan + ' — ' + r.nama_ruangan + ' (' + r.institusi + ')</option>';
   }).join('');
 
@@ -1810,6 +2032,9 @@ async function openKirEditor(kodeRuangan) {
               '<button type="button" class="btn-primary" onclick="openAddBarangToKir(\'' + escapeHtml(kodeRuangan) + '\')">' +
                 iconLabel('plus', 'Tambah Barang ke Ruangan Ini') +
               '</button>' : '') +
+            '<button type="button" class="btn-secondary" onclick="printKIR(\'' + escapeHtml(kodeRuangan) + '\')">' +
+              iconLabel('printer', 'Cetak KIR') +
+            '</button>' +
             '<button type="button" class="btn-secondary" onclick="closeModal()">' +
               iconLabel('xCircle', 'Tutup') +
             '</button>' +
@@ -1949,6 +2174,7 @@ async function openKirEditor(kodeRuangan) {
           ' Sekaligus tandai divalidasi hari ini (reset pengingat 3 bulan)' +
         '</label>' +
         '<div style="display:flex;gap:8px;">' +
+          '<button type="button" class="btn-secondary" onclick="printKIR(\'' + escapeHtml(kodeRuangan) + '\')">' + iconLabel('printer', 'Cetak KIR') + '</button>' +
           '<button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
           '<button type="button" class="btn-primary" id="btn-save-kir" onclick="saveKirChanges(\'' + kodeRuangan + '\')">' +
             iconLabel('check', 'Simpan Perubahan KIR (' + items.length + ' Barang)') +
@@ -2245,7 +2471,13 @@ function hapusBarangDariKir(nomorInventaris, kodeRuangan, jenisBarang) {
   const namaRuangan = ruangan ? ruangan.nama_ruangan : kodeRuangan;
 
   // Ruangan tujuan lain untuk pengalihan (kecuali ruangan ini)
-  const otherRooms = (STATE.ruanganList || []).filter(function (r) { return r.kode_ruangan !== kodeRuangan; });
+  const otherRooms = (STATE.ruanganList || []).filter(function (r) {
+    if (r.kode_ruangan === kodeRuangan) return false;
+    if (STATE.user && (STATE.user.role === 'penanggung_jawab' || STATE.user.role === 'kepala_sekolah') && STATE.user.institusi) {
+      if (r.institusi !== STATE.user.institusi) return false;
+    }
+    return true;
+  });
   const roomOpts = otherRooms.map(function (r) {
     const isGudang = (r.nama_ruangan && r.nama_ruangan.toLowerCase().indexOf('gudang') !== -1) ||
                      (r.kode_ruangan && r.kode_ruangan.toLowerCase().indexOf('gudang') !== -1);
@@ -2411,7 +2643,10 @@ async function printLabelSticker(nomorInventaris) {
       '</div>' +
       '<div class="sticker-grid-single">' + stickerHtml + '</div>' +
     '</div>';
-    showPrintPreview(html, 'portrait');
+    showPrintPreview(html, 'portrait', {
+      title: 'Stiker_' + String(b.nomor_inventaris).replace(/[^a-zA-Z0-9_-]/g, '_'),
+      orientation: 'portrait'
+    });
   } catch (err) { toast(err.message, true); }
 }
 
@@ -2435,7 +2670,10 @@ async function printBatchLabelSticker(kodeRuangan) {
       '</div>' +
       '<div class="sticker-grid-batch">' + stickersHtml + '</div>' +
     '</div>';
-    showPrintPreview(html, 'portrait');
+    showPrintPreview(html, 'portrait', {
+      title: 'Stiker_Batch_' + (ruangan ? ruangan.nama_ruangan.replace(/[^a-zA-Z0-9_-]/g, '_') : kodeRuangan),
+      orientation: 'portrait'
+    });
   } catch (err) { toast(err.message, true); }
 }
 
@@ -2546,7 +2784,7 @@ function userForm(data) {
     '<label>Nama Lengkap<input required id="u-nama" value="' + (data.nama || '') + '"></label>' +
     '<label>Role<select id="u-role">' + roleOptions(data.role) + '</select></label>' +
     '<label>Institusi <span style="font-weight:400;color:#888;">(untuk Kepala Unit &amp; Penanggung Jawab Bidang — akses satu institusi saja. Kosongkan untuk Admin &amp; Divisi Keuangan, karena keduanya otomatis lintas-institusi)</span><select id="u-institusi">' + institusiOptions(data.institusi) + '</select></label>' +
-    '<label>Kode Ruangan <span style="font-weight:400;color:#888;">(khusus role Petugas — akses satu ruangan saja)</span><select id="u-ruangan"><option value="">-</option>' + ruanganOptions(data.kode_ruangan) + '</select></label>' +
+    '<label>Kode Ruangan <span style="font-weight:400;color:#888;">(khusus role Petugas — akses satu ruangan saja)</span><select id="u-ruangan"><option value="">-</option>' + ruanganOptions(data.kode_ruangan, true) + '</select></label>' +
     '<label>Email <span style="font-weight:400;color:#888;">(untuk notifikasi email — wajib diisi untuk role Divisi Keuangan)</span><input type="email" id="u-email" value="' + (data.email || '') + '" placeholder="nama@contoh.com"></label>' +
     '<label>Status<select id="u-status">' +
       '<option value="aktif"' + (data.status === 'aktif' || !isEdit ? ' selected' : '') + '>Aktif</option>' +
@@ -2920,6 +3158,9 @@ const CMD_ACTIONS = [
   } },
   { type: 'action', title: 'Buat Surat Pengadaan (SPPB)', desc: 'Surat permohonan pengadaan barang baru & disposisi pimpinan', icon: 'edit', action: function () {
     openModalSPPB();
+  } },
+  { type: 'action', title: 'Buat Berita Acara Pengadaan (BAPB)', desc: 'Berita acara resmi pemeriksaan, penerimaan, dan realisasi belanja pengadaan barang baru', icon: 'fileText', action: function () {
+    openModalBAPB();
   } },
   { type: 'action', title: 'Buat Berita Acara Serah Terima (BAST)', desc: 'Berita acara penerimaan barang baru atau hibah donatur', icon: 'check', action: function () {
     openModalBAST();
@@ -3430,6 +3671,11 @@ function openPusatDokumenModal() {
         '<div class="doc-hub-title">Surat Pengajuan Pengadaan (SPPB)</div>' +
         '<div class="doc-hub-desc">Formulir usulan pembelian aset baru, estimasi anggaran, dan lembar disposisi pimpinan.</div>' +
       '</div>' +
+      '<div class="doc-hub-card" onclick="closeModal(); openModalBAPB();">' +
+        '<div class="doc-hub-icon">' + icon('fileText', 22) + '</div>' +
+        '<div class="doc-hub-title">Berita Acara Pengadaan (BAPB)</div>' +
+        '<div class="doc-hub-desc">Berita acara resmi pemeriksaan fisik, verifikasi faktur/nota, dan penerimaan hasil pengadaan aset.</div>' +
+      '</div>' +
       '<div class="doc-hub-card" onclick="closeModal(); openModalBAST();">' +
         '<div class="doc-hub-icon">' + icon('check', 22) + '</div>' +
         '<div class="doc-hub-title">Berita Acara Serah Terima (BAST)</div>' +
@@ -3535,7 +3781,10 @@ async function printBAP(id_hapus) {
         '</div>' +
       '</div>';
 
-    showPrintPreview(html, 'portrait');
+    showPrintPreview(html, 'portrait', {
+      title: 'BA_Penghapusan_' + (item.nomor_inventaris ? String(item.nomor_inventaris).replace(/[^a-zA-Z0-9_-]/g, '_') : 'Aset'),
+      orientation: 'portrait'
+    });
   } catch (err) { toast(err.message, true); }
 }
 
@@ -3712,6 +3961,219 @@ function printSPPB() {
 
   closeModal();
   showPrintPreview(html, 'portrait');
+}
+
+// ---------------- DOKUMEN 2B: BERITA ACARA PENGADAAN BARANG (BAPB) ----------------
+let BAPB_ROW_COUNTER = 0;
+
+function openModalBAPB(initialItems, initialMeta) {
+  BAPB_ROW_COUNTER = 0;
+  initialItems = initialItems || [];
+  initialMeta = initialMeta || {};
+  const today = new Date().toISOString().slice(0, 10);
+  const userInst = initialMeta.institusi || (STATE.user && STATE.user.institusi) || 'SMP';
+  const isPjb = STATE.user && STATE.user.role === 'penanggung_jawab';
+  const instFieldHtml = isPjb ?
+    '<label>Institusi / Unit <span style="font-weight:400;color:#888;">(Terkunci di Unit Anda)</span><input id="bapb-institusi" value="' + escapeHtml(userInst) + '" readonly style="background:#f4f4f4;"></label>' :
+    '<label>Institusi / Unit<select id="bapb-institusi">' + institusiOptions(userInst) + '</select></label>';
+
+  const defaultCatatan = 'Barang-barang hasil pengadaan tersebut telah diterima 100% lengkap, dalam keadaan baru dan baik, serta telah melalui pemeriksaan fisik dan uji fungsi beroperasi normal sesuai spesifikasi teknis yang dipersyaratkan.';
+
+  const html =
+    '<form id="form-bapb" onsubmit="event.preventDefault(); printBAPB();">' +
+      '<div class="doc-form-row">' +
+        instFieldHtml +
+        '<label>Tanggal Pemeriksaan &amp; Pengadaan<input type="date" id="bapb-tanggal" value="' + (initialMeta.tanggal || today) + '" required></label>' +
+        '<label>No. Bukti / Faktur / Nota Pembelian<input id="bapb-no-nota" required value="' + escapeHtml(initialMeta.no_nota || '') + '" placeholder="Contoh: NOTA-2026/XI/089 atau KWT-104"></label>' +
+        '<label>Toko / Rekanan / Vendor Penyedia<input id="bapb-vendor" required value="' + escapeHtml(initialMeta.vendor || '') + '" placeholder="Contoh: CV. Mandiri Jaya / Toko Sumber Makmur"></label>' +
+      '</div>' +
+      '<div class="doc-form-row">' +
+        '<label>Sumber Anggaran / Dana<input id="bapb-sumber-dana" value="' + escapeHtml(initialMeta.sumber_dana || 'Yayasan') + '" placeholder="BOS / Yayasan / Komite / Wakaf"></label>' +
+        '<label>Pejabat / Tim Pemeriksa Barang<input id="bapb-pemeriksa" required value="' + escapeHtml(STATE.user && STATE.user.nama ? STATE.user.nama : '') + '" placeholder="Nama staf pemeriksa barang"></label>' +
+        '<label>Waka Sarpras Unit<input id="bapb-waka" required value="' + escapeHtml(penanggungJawabNama(userInst) || '') + '" placeholder="Nama Waka Sarpras"></label>' +
+      '</div>' +
+      '<label>Catatan Uji Fungsi &amp; Kondisi Fisik<textarea id="bapb-catatan" rows="2" placeholder="Catatan hasil verifikasi fisik...">' + escapeHtml(initialMeta.catatan || defaultCatatan) + '</textarea></label>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 6px;">' +
+        '<strong style="font-size:13px;">Rincian Barang Hasil Pengadaan:</strong>' +
+        '<button type="button" class="btn-secondary btn-sm" onclick="addBapbItemRow()">' + iconLabel('plus', 'Tambah Baris') + '</button>' +
+      '</div>' +
+      '<div style="overflow-x:auto;">' +
+        '<table class="doc-items-table" id="table-bapb-items">' +
+          '<thead><tr>' +
+            '<th style="width:26%;">Nama Barang</th>' +
+            '<th style="width:28%;">Spesifikasi / Merk</th>' +
+            '<th style="width:10%;">Jumlah</th>' +
+            '<th style="width:10%;">Satuan</th>' +
+            '<th style="width:18%;">Harga Satuan (Rp)</th>' +
+            '<th style="width:8%;">Aksi</th>' +
+          '</tr></thead>' +
+          '<tbody></tbody>' +
+        '</table>' +
+      '</div>' +
+      '<div style="text-align:right;font-size:13px;font-weight:600;margin-top:8px;">' +
+        'Total Realisasi Belanja: <span id="bapb-grand-total" style="color:var(--red);">Rp 0</span>' +
+      '</div>' +
+      '<div class="modal-footer">' +
+        '<button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
+        '<button type="submit" class="btn-primary">' + iconLabel('printer', 'Terbitkan &amp; Cetak Berita Acara (BAPB)') + '</button>' +
+      '</div>' +
+    '</form>';
+
+  openModal('Berita Acara Pengadaan Barang (BAPB)', html, 'modal-xl');
+  if (initialItems && initialItems.length > 0) {
+    initialItems.forEach(function (it) { addBapbItemRow(it); });
+  } else {
+    addBapbItemRow();
+  }
+}
+
+function addBapbItemRow(initialData) {
+  initialData = initialData || {};
+  BAPB_ROW_COUNTER++;
+  const tbody = document.querySelector('#table-bapb-items tbody');
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  tr.id = 'bapb-row-' + BAPB_ROW_COUNTER;
+  const hargaVal = Number(initialData.harga || 0).toLocaleString('id-ID');
+  tr.innerHTML =
+    '<td><input required class="bapb-nama" value="' + escapeHtml(initialData.nama || '') + '" placeholder="Contoh: AC Split 1.5 PK"></td>' +
+    '<td><input class="bapb-spek" value="' + escapeHtml(initialData.spek || '') + '" placeholder="Contoh: Daikin Inverter FTKQ35"></td>' +
+    '<td><input required type="number" min="1" class="bapb-qty" value="' + (initialData.qty || 1) + '" oninput="calculateBapbTotal()"></td>' +
+    '<td><input class="bapb-satuan" value="' + escapeHtml(initialData.satuan || 'Unit') + '" placeholder="Unit/Set/Pcs"></td>' +
+    '<td><input required type="text" inputmode="numeric" class="bapb-harga" value="' + hargaVal + '" oninput="onBapbHargaInput(this)"></td>' +
+    '<td style="text-align:center;"><button type="button" class="btn-row-del" onclick="removeBapbItemRow(' + BAPB_ROW_COUNTER + ')" title="Hapus Baris">' + icon('trash', 13) + '</button></td>';
+  tbody.appendChild(tr);
+  calculateBapbTotal();
+}
+
+function removeBapbItemRow(id) {
+  const row = document.getElementById('bapb-row-' + id);
+  if (row) row.remove();
+  calculateBapbTotal();
+}
+
+function onBapbHargaInput(el) {
+  const digits = el.value.replace(/\D/g, '');
+  el.value = digits ? Number(digits).toLocaleString('id-ID') : '0';
+  calculateBapbTotal();
+}
+
+function calculateBapbTotal() {
+  let total = 0;
+  const rows = document.querySelectorAll('#table-bapb-items tbody tr');
+  rows.forEach(function (r) {
+    const qty = parseInt(r.querySelector('.bapb-qty').value, 10) || 0;
+    const harga = Number(r.querySelector('.bapb-harga').value.replace(/\D/g, '')) || 0;
+    total += (qty * harga);
+  });
+  const totalEl = document.getElementById('bapb-grand-total');
+  if (totalEl) totalEl.textContent = rupiah(total);
+}
+
+function printBAPB() {
+  const inst = document.getElementById('bapb-institusi').value || 'SMP';
+  const tgl = fmtDate(document.getElementById('bapb-tanggal').value);
+  const noNota = document.getElementById('bapb-no-nota').value;
+  const vendor = document.getElementById('bapb-vendor').value;
+  const sumberDana = document.getElementById('bapb-sumber-dana').value || 'Yayasan';
+  const pemeriksa = document.getElementById('bapb-pemeriksa').value;
+  const wakaNama = document.getElementById('bapb-waka').value || penanggungJawabNama(inst);
+  const catatan = document.getElementById('bapb-catatan').value;
+
+  const rows = document.querySelectorAll('#table-bapb-items tbody tr');
+  if (rows.length === 0) { toast('Rincian barang hasil pengadaan belum diisi.', true); return; }
+
+  let grandTotal = 0;
+  const itemsHtml = Array.from(rows).map(function (r, idx) {
+    const nama = r.querySelector('.bapb-nama').value;
+    const spek = r.querySelector('.bapb-spek').value;
+    const qty = parseInt(r.querySelector('.bapb-qty').value, 10) || 0;
+    const satuan = r.querySelector('.bapb-satuan').value || 'Unit';
+    const harga = Number(r.querySelector('.bapb-harga').value.replace(/\D/g, '')) || 0;
+    const subtotal = qty * harga;
+    grandTotal += subtotal;
+
+    return '<tr>' +
+      '<td style="text-align:center;">' + (idx + 1) + '</td>' +
+      '<td><strong>' + escapeHtml(nama) + '</strong></td>' +
+      '<td>' + escapeHtml(spek || '-') + '</td>' +
+      '<td style="text-align:center;">' + qty + ' ' + escapeHtml(satuan) + '</td>' +
+      '<td style="text-align:right;">' + rupiah(harga) + '</td>' +
+      '<td style="text-align:right;font-weight:600;">' + rupiah(subtotal) + '</td>' +
+      '<td style="text-align:center;color:#16a34a;font-weight:600;font-size:11px;">Baik &amp; Lengkap</td>' +
+    '</tr>';
+  }).join('');
+
+  const noSurat = generateNoSurat('BAPB', inst);
+
+  const html =
+    '<div class="print-page portrait">' + printBgImage(inst) +
+      '<div class="print-content">' +
+        '<div class="print-title">BERITA ACARA PENGADAAN BARANG (BAPB)</div>' +
+        '<div style="text-align:center;font-size:12px;margin:-12px 0 16px;color:#333;">Nomor: ' + noSurat + '</div>' +
+        '<div class="print-clause">' +
+          'Pada hari ini tanggal <strong>' + tgl + '</strong>, bertempat di lingkungan Sarana &amp; Prasarana <strong>' + inst + ' Pondok Pesantren Modern DAFI Sidoarjo</strong>, kami yang bertanda tangan di bawah ini Tim Pemeriksa Pengadaan Barang Sarpras telah melaksanakan verifikasi dokumen, pemeriksaan fisik, dan uji fungsi terhadap realisasi pengadaan barang/aset dengan data administratif sebagai berikut:' +
+        '</div>' +
+        '<div class="print-meta-grid" style="margin-bottom:12px;">' +
+          '<div class="print-meta-item"><span class="print-meta-k">Tanggal Pemeriksaan</span>: ' + tgl + '</div>' +
+          '<div class="print-meta-item"><span class="print-meta-k">No. Bukti / Nota</span>: <strong>' + escapeHtml(noNota) + '</strong></div>' +
+          '<div class="print-meta-item"><span class="print-meta-k">Toko / Rekanan Penyedia</span>: ' + escapeHtml(vendor) + '</div>' +
+          '<div class="print-meta-item"><span class="print-meta-k">Sumber Dana Anggaran</span>: ' + escapeHtml(sumberDana) + '</div>' +
+        '</div>' +
+        '<div class="print-subtitle">Rincian Barang yang Diadakan &amp; Hasil Pemeriksaan:</div>' +
+        '<table class="print-data-table">' +
+          '<thead><tr>' +
+            '<th style="width:5%;">No</th>' +
+            '<th>Nama Barang</th>' +
+            '<th>Spesifikasi / Merk</th>' +
+            '<th style="width:12%;">Volume</th>' +
+            '<th style="width:16%;">Harga Satuan</th>' +
+            '<th style="width:18%;">Total Biaya</th>' +
+            '<th style="width:14%;">Hasil Uji Fisik</th>' +
+          '</tr></thead>' +
+          '<tbody>' + itemsHtml + '</tbody>' +
+          '<tfoot><tr>' +
+            '<th colspan="5" style="text-align:right;font-weight:bold;">TOTAL REALISASI BELANJA:</th>' +
+            '<th colspan="2" style="text-align:left;font-weight:bold;color:#b91c1c;padding-left:10px;">' + rupiah(grandTotal) + '</th>' +
+          '</tr></tfoot>' +
+        '</table>' +
+        '<div class="print-clause" style="margin-top:12px;">' +
+          '<strong>Pernyataan Hasil Pemeriksaan &amp; Penerimaan Aset:</strong><br>' +
+          escapeHtml(catatan) + '<br>' +
+          'Berdasarkan hasil pemeriksaan tersebut di atas, seluruh barang dinyatakan telah memenuhi spesifikasi yang dipersyaratkan dan secara resmi <strong>DITERIMA</strong> untuk dicatatkan ke dalam Buku Induk Inventaris Sarana dan Prasarana (KIB &amp; KIR) ' + inst + ' DAFI.' +
+        '</div>' +
+        '<div class="sig-grid-4" style="margin-top:20px;">' +
+          sigBlock('Pemeriksa Pengadaan', pemeriksa) +
+          sigBlock('Waka Sarpras', wakaNama) +
+          sigBlock('Bagian Keuangan', STATE.pengaturan['keuangan_nama'] || 'Divisi Keuangan') +
+          sigBlock('Mengetahui,<br>' + (PIMPINAN_JABATAN[inst] || 'Pimpinan'), pimpinanNama(inst)) +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  closeModal();
+  showPrintPreview(html, 'portrait');
+}
+
+async function openBapbForBarang(nomorInventaris) {
+  try {
+    const res = await api('getBarang', { nomor_inventaris: nomorInventaris });
+    const b = res.data;
+    if (!b) return;
+    openModalBAPB([
+      {
+        nama: b.jenis_barang,
+        spek: b.spesifikasi,
+        qty: 1,
+        satuan: b.nama_satuan || 'Unit',
+        harga: b.harga || 0
+      }
+    ], {
+      institusi: b.institusi,
+      no_nota: b.no_bukti_nota || '',
+      sumber_dana: b.sumber_dana || 'Yayasan'
+    });
+  } catch (err) { toast(err.message, true); }
 }
 
 // ---------------- DOKUMEN 3: SERAH TERIMA BARANG (BAST) ----------------
@@ -3913,7 +4375,10 @@ async function printSuratPeminjaman(id_pinjam) {
         '</div>' +
       '</div>';
 
-    showPrintPreview(html, 'portrait');
+    showPrintPreview(html, 'portrait', {
+      title: 'Surat_Peminjaman_' + (p.id_pinjam || 'Aset'),
+      orientation: 'portrait'
+    });
   } catch (err) { toast(err.message, true); }
 }
 
@@ -3970,6 +4435,9 @@ async function printBeritaAcaraOpname(institusi) {
         '</div>' +
       '</div>';
 
-    showPrintPreview(html, 'portrait');
+    showPrintPreview(html, 'portrait', {
+      title: 'BA_Stock_Opname_' + inst,
+      orientation: 'portrait'
+    });
   } catch (err) { toast(err.message, true); }
 }

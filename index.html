@@ -283,7 +283,7 @@
         <h2>Data Ruangan</h2>
         <div style="display:flex;gap:8px;">
           <button class="btn-secondary write-action" id="btn-select-kir-editor" onclick="openSelectRoomForKirEditor()" data-icon="edit">Edit KIR Ruangan</button>
-          <button class="btn-primary admin-only" id="btn-new-ruangan" data-icon="plus">Ruangan Baru</button>
+          <button class="btn-primary pjb-only" id="btn-new-ruangan" data-icon="plus">Ruangan Baru</button>
         </div>
       </div>
       <div class="filter-row">
@@ -458,13 +458,30 @@
 
 <div id="print-preview-overlay" class="print-preview-overlay hidden">
   <div class="print-preview-toolbar no-print">
-    <span class="print-preview-title">Pratinjau Cetak<span class="print-scroll-hint"> — geser untuk lihat halaman penuh</span></span>
-    <div>
-      <button id="btn-print-now" class="btn-primary" data-icon="printer">Cetak / Simpan sebagai PDF</button>
-      <button id="btn-close-print" class="btn-secondary" data-icon="xCircle">Tutup</button>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span class="print-preview-title">Pratinjau & Unduh Dokumen</span>
+      <span class="print-scroll-hint"> — geser untuk lihat halaman penuh</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button id="btn-download-pdf" type="button" class="btn-primary" onclick="downloadCurrentPrintPdf()" title="Unduh langsung sebagai file PDF resmi tanpa dialog cetak">
+        📥 <span>Download PDF</span>
+      </button>
+      <button id="btn-download-csv" type="button" class="btn-secondary hidden" onclick="downloadCurrentPrintCsv()" title="Unduh data tabel ke file Excel (CSV)">
+        📊 <span>Download Excel (CSV)</span>
+      </button>
+      <button id="btn-download-html" type="button" class="btn-secondary" onclick="downloadCurrentPrintHtml()" title="Unduh file dokumen mandiri (.html) siap buka/cetak kapan saja">
+        📄 <span>Download File (.html)</span>
+      </button>
+      <button id="btn-print-now" type="button" class="btn-secondary" title="Kirim ke printer atau dialog cetak peramban">
+        🖨️ <span>Cetak</span>
+      </button>
+      <button id="btn-close-print" type="button" class="btn-secondary" title="Tutup pratinjau">✕ Tutup</button>
     </div>
   </div>
   <div class="print-preview-scroll">
+    <div class="print-tip-banner no-print">
+      💡 <strong>Tips:</strong> Klik <strong>Download PDF</strong> untuk mengunduh dokumen langsung tanpa perlu mengatur printer. Jika memilih tombol <strong>Cetak</strong>, pastikan pada dialog printer pilih <em>Margins = "None / Tidak Ada"</em> dan centang <em>"Background graphics / Grafik latar belakang"</em> agar kop surat pas 1 halaman.
+    </div>
     <div id="print-area"></div>
   </div>
 </div>
@@ -489,6 +506,7 @@
   <span>+</span>
 </button>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
