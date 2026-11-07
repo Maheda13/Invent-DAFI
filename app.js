@@ -516,7 +516,7 @@ async function loadDashboard() {
       '<div class="dash-opname-footer">' +
         '<span><strong>' + validCount.toLocaleString('id-ID') + '</strong> dari <strong>' + (s.total_barang || 0).toLocaleString('id-ID') + '</strong> barang telah tervalidasi</span>' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
-          '<button class="btn btn-sm btn-outline-white" onclick="printBeritaAcaraOpname()">' + icon('printer', 14) + '<span>Cetak BA Opname</span></button>' +
+          '<button class="btn btn-sm btn-outline-white" onclick="printBeritaAcaraOpname()">' + icon('download', 14) + '<span>Download BA Opname</span></button>' +
           (s.barang_perlu_validasi > 0
             ? '<button class="btn btn-sm btn-outline-white" onclick="filterBarangPerluValidasi()">' + icon('alertTriangle', 14) + '<span>Lihat Perlu Validasi (' + s.barang_perlu_validasi + ')</span></button>'
             : '<span style="font-size:0.85rem;font-weight:600;opacity:0.95;">' + icon('check', 14) + ' Semua Aset Tervalidasi</span>') +
@@ -754,7 +754,7 @@ function renderBarangTableRows() {
       '<td class="row-actions">' +
         (STATE.user.role !== 'keuangan' ? '<button data-tooltip="Ubah" onclick="editBarang(\'' + b.nomor_inventaris + '\')">' + icon('edit') + '</button>' : '') +
         (STATE.user.role !== 'keuangan' ? '<button data-tooltip="Validasi Ulang Fisik Hari Ini (Reset Siklus 3 Bulan)" onclick="validasiBarangSingle(\'' + b.nomor_inventaris + '\')">' + icon('check') + '</button>' : '') +
-        '<button data-tooltip="Cetak KIB" onclick="printKIB(\'' + b.nomor_inventaris + '\')">' + icon('printer') + '</button>' +
+        '<button data-tooltip="Download KIB" onclick="printKIB(\'' + b.nomor_inventaris + '\')">' + icon('download') + '</button>' +
         (FEATURE_LABEL_STICKER ? '<button data-tooltip="Cetak Label Stiker" onclick="printLabelSticker(\'' + b.nomor_inventaris + '\')">' + icon('tag') + '</button>' : '') +
         (STATE.user.role === 'admin' ? '<button data-tooltip="Hapus Draf" onclick="hapusBarangDraft(\'' + b.nomor_inventaris + '\')">' + icon('trash') + '</button>' : '') +
       '</td></tr>';
@@ -1188,6 +1188,14 @@ function showPrintPreview(html, orientation, docMeta) {
     orientation: orientation || 'portrait'
   };
 
+  // Perbarui judul pada header pop-up pratinjau dokumen
+  const titleEl = document.getElementById('preview-modal-title');
+  if (titleEl) {
+    titleEl.textContent = docMeta && docMeta.title
+      ? '📥 Pratinjau: ' + docMeta.title.replace(/_/g, ' ')
+      : '📥 Pratinjau & Download Dokumen';
+  }
+
   // Tampilkan/sembunyikan tombol Download Excel jika data CSV tersedia
   const btnCsv = document.getElementById('btn-download-csv');
   if (btnCsv) {
@@ -1245,8 +1253,9 @@ function downloadCurrentPrintPdf() {
       toast('File PDF berhasil diunduh: ' + filename);
     }).catch(function (err) {
       restoreStyles();
-      console.warn('html2pdf error, fallback to browser print/save:', err);
-      window.print();
+      console.warn('html2pdf error:', err);
+      toast('Gagal membuat PDF otomatis. Mengunduh file dokumen mandiri (.html)...', true);
+      downloadCurrentPrintHtml();
     });
   } else {
     // Fallback jika library belum termuat
@@ -1340,7 +1349,12 @@ function downloadCurrentPrintCsv() {
 document.getElementById('btn-close-print').addEventListener('click', function () {
   document.getElementById('print-preview-overlay').classList.add('hidden');
 });
-document.getElementById('btn-print-now').addEventListener('click', function () { window.print(); });
+// Tutup pop-up pratinjau ketika pengguna mengklik area backdrop di luar modal
+document.getElementById('print-preview-overlay').addEventListener('click', function (e) {
+  if (e.target.id === 'print-preview-overlay') {
+    document.getElementById('print-preview-overlay').classList.add('hidden');
+  }
+});
 
 function roomAreaRuangan(kodeRuangan) {
   const r = STATE.ruanganList.find(function (x) { return x.kode_ruangan === kodeRuangan; });
@@ -1420,7 +1434,7 @@ async function loadPeminjaman() {
       '<td class="col-wide">' + badge(p.status) + '</td>' +
       '<td class="row-actions">' +
         '<button data-tooltip="Detail" onclick="detailPeminjaman(\'' + p.id_pinjam + '\')">' + icon('eye') + '</button>' +
-        '<button data-tooltip="Cetak Surat Bukti Pinjam" onclick="printSuratPeminjaman(\'' + p.id_pinjam + '\')">' + icon('printer') + '</button>' +
+        '<button data-tooltip="Download Surat Bukti Pinjam" onclick="printSuratPeminjaman(\'' + p.id_pinjam + '\')">' + icon('download') + '</button>' +
       '</td></tr>';
   }).join('') || '<tr><td colspan="8" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
@@ -1448,7 +1462,7 @@ function detailPeminjaman(id) {
     return '<div class="detail-row"><span class="dl-label">' + r[0] + '</span><span class="dl-value">' + r[1] + '</span></div>';
   }).join('') + '</div>' +
   '<div class="modal-footer">' +
-    '<button class="btn-secondary" onclick="printSuratPeminjaman(\'' + p.id_pinjam + '\')">' + iconLabel('printer', 'Cetak Surat Bukti Pinjam') + '</button>' +
+    '<button class="btn-secondary" onclick="printSuratPeminjaman(\'' + p.id_pinjam + '\')">' + iconLabel('download', 'Download Surat Bukti Pinjam') + '</button>' +
     (p.status === 'dipinjam' && STATE.user.role !== 'keuangan' ? '<button class="btn-primary" onclick="closeModal(); kembalikanPinjam(\'' + p.id_pinjam + '\')">' + iconLabel('undo', 'Kembalikan Barang') + '</button>' : '') +
   '</div>';
   openModal('Detail Peminjaman', detailHtml);
@@ -1665,7 +1679,7 @@ async function loadPenghapusan() {
       '<td>' + badge(p.status) + '</td>' +
       '<td class="row-actions">' +
         '<button data-tooltip="Detail" onclick="detailPenghapusan(\'' + p.id_hapus + '\')">' + icon('eye') + '</button>' +
-        (p.status === 'disetujui' ? '<button data-tooltip="Cetak Berita Acara Pemusnahan (BAP)" onclick="printBAP(\'' + p.id_hapus + '\')">' + icon('printer') + '</button>' : '') +
+        (p.status === 'disetujui' ? '<button data-tooltip="Download Berita Acara Pemusnahan (BAP)" onclick="printBAP(\'' + p.id_hapus + '\')">' + icon('download') + '</button>' : '') +
       '</td></tr>';
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Belum ada data.</td></tr>';
 }
@@ -1698,7 +1712,7 @@ function detailPenghapusan(id) {
     '</div>';
   } else if (p.status === 'disetujui') {
     footerHtml = '<div class="modal-footer">' +
-      '<button class="btn-primary" onclick="printBAP(\'' + p.id_hapus + '\')">' + iconLabel('printer', 'Cetak Berita Acara Pemusnahan (BAP)') + '</button>' +
+      '<button class="btn-primary" onclick="printBAP(\'' + p.id_hapus + '\')">' + iconLabel('download', 'Download Berita Acara Pemusnahan (BAP)') + '</button>' +
     '</div>';
   }
   const detailHtml = '<div class="detail-list">' + rows.map(function (r) {
@@ -1818,7 +1832,7 @@ function renderRuanganTable() {
       '<td class="row-actions">' +
         (STATE.user.role !== 'keuangan' ? '<button data-tooltip="Edit KIR (Detail Barang Ruangan)" onclick="openKirEditor(\'' + r.kode_ruangan + '\')">' + icon('clipboard') + '</button> ' : '') +
         (canEditRoom ? '<button data-tooltip="Ubah Data Ruangan" onclick="editRuangan(\'' + r.kode_ruangan + '\')">' + icon('edit') + '</button> ' : '') +
-        '<button data-tooltip="Cetak KIR" onclick="printKIR(\'' + r.kode_ruangan + '\')">' + icon('printer') + '</button>' +
+        '<button data-tooltip="Download KIR" onclick="printKIR(\'' + r.kode_ruangan + '\')">' + icon('download') + '</button>' +
         (FEATURE_LABEL_STICKER ? ' <button data-tooltip="Cetak Semua Stiker Ruangan" onclick="printBatchLabelSticker(\'' + r.kode_ruangan + '\')">' + icon('tag') + '</button>' : '') +
       '</td></tr>';
   }).join('') || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px;">Tidak ada ruangan yang cocok.</td></tr>';
@@ -2089,7 +2103,7 @@ async function openKirEditor(kodeRuangan) {
                 iconLabel('plus', 'Tambah Barang ke Ruangan Ini') +
               '</button>' : '') +
             '<button type="button" class="btn-secondary" onclick="printKIR(\'' + escapeHtml(kodeRuangan) + '\')">' +
-              iconLabel('printer', 'Cetak KIR') +
+              iconLabel('download', 'Download KIR') +
             '</button>' +
             '<button type="button" class="btn-secondary" onclick="closeModal()">' +
               iconLabel('xCircle', 'Tutup') +
@@ -2230,7 +2244,7 @@ async function openKirEditor(kodeRuangan) {
           ' Sekaligus tandai divalidasi hari ini (reset pengingat 3 bulan)' +
         '</label>' +
         '<div style="display:flex;gap:8px;">' +
-          '<button type="button" class="btn-secondary" onclick="printKIR(\'' + escapeHtml(kodeRuangan) + '\')">' + iconLabel('printer', 'Cetak KIR') + '</button>' +
+          '<button type="button" class="btn-secondary" onclick="printKIR(\'' + escapeHtml(kodeRuangan) + '\')">' + iconLabel('download', 'Download KIR') + '</button>' +
           '<button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
           '<button type="button" class="btn-primary" id="btn-save-kir" onclick="saveKirChanges(\'' + kodeRuangan + '\')">' +
             iconLabel('check', 'Simpan Perubahan KIR (' + items.length + ' Barang)') +
@@ -3184,14 +3198,14 @@ async function hapusBarangDraft(nomorInventaris) {
 // ============================================================
 const CMD_ACTIONS = [
   { type: 'nav', title: 'Dashboard Utama', desc: 'Ringkasan aset, status opname, dan peringatan', icon: 'home', action: function () { switchView('dashboard'); } },
-  { type: 'nav', title: 'Data Barang Inventaris', desc: 'Daftar semua inventaris, pencarian, dan cetak KIB', icon: 'box', action: function () { switchView('barang'); } },
+  { type: 'nav', title: 'Data Barang Inventaris', desc: 'Daftar semua inventaris, pencarian, dan download KIB', icon: 'box', action: function () { switchView('barang'); } },
   { type: 'nav', title: 'Peminjaman Barang', desc: 'Kelola peminjaman dan pengembalian aset', icon: 'swap', action: function () { switchView('peminjaman'); } },
   { type: 'nav', title: 'Laporan Kerusakan', desc: 'Catatan barang rusak dan usulan perbaikan', icon: 'alertTriangle', action: function () { switchView('kerusakan'); } },
   { type: 'nav', title: 'Jadwal Perawatan', desc: 'Perawatan berkala inventaris sekolah', icon: 'wrench', action: function () { switchView('perawatan'); } },
   { type: 'nav', title: 'Penghapusan Aset', desc: 'Usulan dan berita acara penghapusan barang', icon: 'trash', action: function () { switchView('penghapusan'); } },
   { type: 'nav', title: 'Stok Habis Pakai', desc: 'Manajemen barang habis pakai dan logistik', icon: 'archive', action: function () { switchView('stok'); } },
-  { type: 'nav', title: 'Daftar Ruangan & KIR', desc: 'Kartu Inventaris Ruangan (KIR) dan cetak stiker', icon: 'building', action: function () { switchView('ruangan'); } },
-  { type: 'nav', title: 'Pengaturan Cetak & Validasi', desc: 'Konfigurasi pimpinan, waka sarpras, dan siklus validasi', icon: 'sliders', action: function () { switchView('pengaturan'); } },
+  { type: 'nav', title: 'Daftar Ruangan & KIR', desc: 'Kartu Inventaris Ruangan (KIR) dan download dokumen', icon: 'building', action: function () { switchView('ruangan'); } },
+  { type: 'nav', title: 'Pengaturan Dokumen & Validasi', desc: 'Konfigurasi pimpinan, waka sarpras, dan siklus validasi', icon: 'sliders', action: function () { switchView('pengaturan'); } },
   { type: 'action', title: 'Tambah Barang Baru', desc: 'Formulir input aset inventaris baru', icon: 'plus', action: function () {
     switchView('barang');
     const btn = document.getElementById('btn-new-barang');
@@ -3209,7 +3223,7 @@ const CMD_ACTIONS = [
   { type: 'action', title: 'Impor Data Barang (CSV / Excel)', desc: 'Wizard migrasi data inventaris dari spreadsheet lama', icon: 'clipboard', action: function () {
     openImportWizard();
   } },
-  { type: 'action', title: 'Pusat Dokumen & Surat Sarpras', desc: 'Cetak SPPB, BAST, BAP, Bukti Peminjaman & BA Opname', icon: 'printer', action: function () {
+  { type: 'action', title: 'Pusat Dokumen & Surat Sarpras', desc: 'Download SPPB, BAST, BAP, Bukti Peminjaman & BA Opname', icon: 'fileText', action: function () {
     openPusatDokumenModal();
   } },
   { type: 'action', title: 'Buat Surat Pengadaan (SPPB)', desc: 'Surat permohonan pengadaan barang baru & disposisi pimpinan', icon: 'edit', action: function () {
@@ -3221,10 +3235,10 @@ const CMD_ACTIONS = [
   { type: 'action', title: 'Buat Berita Acara Serah Terima (BAST)', desc: 'Berita acara penerimaan barang baru atau hibah donatur', icon: 'check', action: function () {
     openModalBAST();
   } },
-  { type: 'action', title: 'Cetak Berita Acara Pemusnahan (BAP)', desc: 'Dokumen berita acara penghapusan dan pemusnahan aset disetujui', icon: 'trash', action: function () {
+  { type: 'action', title: 'Download Berita Acara Pemusnahan (BAP)', desc: 'Dokumen berita acara penghapusan dan pemusnahan aset disetujui', icon: 'trash', action: function () {
     openBAPSelector();
   } },
-  { type: 'action', title: 'Cetak Berita Acara Stock Opname', desc: 'Laporan resmi hasil verifikasi fisik inventaris triwulanan', icon: 'printer', action: function () {
+  { type: 'action', title: 'Download Berita Acara Stock Opname', desc: 'Laporan resmi hasil verifikasi fisik inventaris triwulanan', icon: 'download', action: function () {
     printBeritaAcaraOpname();
   } }
 ];
@@ -3719,7 +3733,7 @@ async function executeBatchImport() {
 function openPusatDokumenModal() {
   const html =
     '<div style="margin-bottom:14px;color:#475569;font-size:13px;">' +
-      'Pilih jenis dokumen administrasi sarpras resmi yang ingin Anda terbitkan atau cetak:' +
+      'Pilih jenis dokumen administrasi sarpras resmi yang ingin Anda buat atau unduh:' +
     '</div>' +
     '<div class="doc-hub-grid">' +
       '<div class="doc-hub-card" onclick="closeModal(); openModalSPPB();">' +
@@ -3748,20 +3762,20 @@ function openPusatDokumenModal() {
         '<div class="doc-hub-desc">Surat izin pinjam pakai barang sarpras lengkap dengan pakta integritas peminjam.</div>' +
       '</div>' +
       '<div class="doc-hub-card" onclick="closeModal(); printBeritaAcaraOpname();">' +
-        '<div class="doc-hub-icon">' + icon('printer', 22) + '</div>' +
+        '<div class="doc-hub-icon">' + icon('download', 22) + '</div>' +
         '<div class="doc-hub-title">Berita Acara Stock Opname Triwulan</div>' +
         '<div class="doc-hub-desc">Laporan hasil verifikasi audit fisik inventaris berkala 3 bulanan.</div>' +
       '</div>' +
     '</div>';
 
-  openModal('Pusat Cetak Dokumen Administrasi Sarpras', html, 'modal-lg');
+  openModal('Pusat Download Dokumen Administrasi Sarpras', html, 'modal-lg');
 }
 
 // ---------------- DOKUMEN 1: BERITA ACARA PEMUSNAHAN (BAP) ----------------
 function openBAPSelector() {
   const approved = (PENGHAPUSAN_CACHE || []).filter(function (p) { return p.status === 'disetujui'; });
   if (approved.length === 0) {
-    openModal('Cetak Berita Acara Pemusnahan (BAP)',
+    openModal('Download Berita Acara Pemusnahan (BAP)',
       '<div class="empty-state-card">' +
         '<div class="empty-state-icon">' + icon('trash', 32) + '</div>' +
         '<div class="empty-state-title">Belum Ada Usulan yang Disetujui</div>' +
@@ -3887,7 +3901,7 @@ function openModalSPPB() {
       '</div>' +
       '<div class="modal-footer">' +
         '<button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
-        '<button type="submit" class="btn-primary">' + iconLabel('printer', 'Terbitkan & Cetak SPPB') + '</button>' +
+        '<button type="submit" class="btn-primary">' + iconLabel('download', 'Pratinjau & Download SPPB') + '</button>' +
       '</div>' +
     '</form>';
 
@@ -4071,7 +4085,7 @@ function openModalBAPB(initialItems, initialMeta) {
       '</div>' +
       '<div class="modal-footer">' +
         '<button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
-        '<button type="submit" class="btn-primary">' + iconLabel('printer', 'Terbitkan &amp; Cetak Berita Acara (BAPB)') + '</button>' +
+        '<button type="submit" class="btn-primary">' + iconLabel('download', 'Pratinjau &amp; Download BAPB') + '</button>' +
       '</div>' +
     '</form>';
 
@@ -4282,7 +4296,7 @@ function openModalBAST() {
       '</div>' +
       '<div class="modal-footer">' +
         '<button type="button" class="btn-secondary" onclick="closeModal()">' + iconLabel('xCircle', 'Batal') + '</button>' +
-        '<button type="submit" class="btn-primary">' + iconLabel('printer', 'Terbitkan & Cetak BAST') + '</button>' +
+        '<button type="submit" class="btn-primary">' + iconLabel('download', 'Pratinjau & Download BAST') + '</button>' +
       '</div>' +
     '</form>';
 
